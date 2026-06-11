@@ -1,6 +1,12 @@
 'use client';
 
-import { Check, ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Search,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
@@ -14,7 +20,13 @@ import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
 type ConfidenceFilter = 'all' | 'needs-review' | 'high' | 'low';
-type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category' | 'confidence';
+type SortKey =
+  | 'date-desc'
+  | 'date-asc'
+  | 'amount-desc'
+  | 'amount-asc'
+  | 'category'
+  | 'confidence';
 
 const statusOptions: Array<TransactionStatus | 'All'> = [
   'All',
@@ -40,8 +52,9 @@ export const TransactionsReview = () => {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [statusFilter, setStatusFilter] =
-    useState<TransactionStatus | 'All'>('All');
+  const [statusFilter, setStatusFilter] = useState<TransactionStatus | 'All'>(
+    'All',
+  );
   const [confidenceFilter, setConfidenceFilter] =
     useState<ConfidenceFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('date-desc');
@@ -70,10 +83,7 @@ export const TransactionsReview = () => {
         (confidenceFilter === 'low' && transaction.confidence < 70);
 
       return (
-        matchesQuery &&
-        matchesCategory &&
-        matchesStatus &&
-        matchesConfidence
+        matchesQuery && matchesCategory && matchesStatus && matchesConfidence
       );
     });
 

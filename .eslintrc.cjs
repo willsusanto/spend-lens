@@ -97,7 +97,7 @@ module.exports = {
           },
         ],
         'import/no-cycle': 'error',
-        'linebreak-style': ['error', 'unix'],
+        'linebreak-style': 'off',
         'react/prop-types': 'off',
         'import/order': [
           'error',

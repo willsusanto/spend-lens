@@ -34,7 +34,9 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
             <Banknote className="size-4" aria-hidden="true" />
           </span>
           <span>
-            <span className="block text-xl font-bold leading-7">LedgerLocal</span>
+            <span className="block text-xl font-bold leading-7">
+              LedgerLocal
+            </span>
             <span className="block text-xs font-medium leading-4 text-[hsl(var(--on-surface-variant))]">
               Personal Finance
             </span>

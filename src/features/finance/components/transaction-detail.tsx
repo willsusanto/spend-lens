@@ -1,21 +1,12 @@
 'use client';
 
-import {
-  ArrowLeft,
-  Check,
-  ChevronRight,
-  Save,
-  Sparkles,
-} from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Save, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
-import {
-  categories,
-  formatSignedCurrency,
-} from '@/features/finance/data';
+import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
