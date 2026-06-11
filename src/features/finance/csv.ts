@@ -258,6 +258,8 @@ export const parseTransactionsCsv = (
       category: inferred.category,
       confidence: inferred.confidence,
       status,
+      aiReason: 'Initial local rule match before Ollama categorization.',
+      categorizationSource: 'heuristic' as const,
       importId,
       sourceFile: fileName,
     };
@@ -274,7 +276,7 @@ export const parseTransactionsCsv = (
         minute: '2-digit',
       }).format(new Date()),
       rows: transactions.length,
-      status: 'Processed',
+      status: 'Parsed',
     },
     transactions,
   };

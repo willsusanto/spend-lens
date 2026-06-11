@@ -1,6 +1,8 @@
 'use client';
 
 import { Upload } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
@@ -8,6 +10,7 @@ import { useFinanceData } from '@/features/finance/use-finance-data';
 
 export const ImportsHistory = () => {
   const { importCsv, imports, message } = useFinanceData();
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = async (files: FileList | null) => {
@@ -17,7 +20,8 @@ export const ImportsHistory = () => {
       return;
     }
 
-    await importCsv(file);
+    const result = await importCsv(file);
+    router.push(`/imports/${result.batch.id}/review`);
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -62,6 +66,7 @@ export const ImportsHistory = () => {
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Rows</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
@@ -80,6 +85,14 @@ export const ImportsHistory = () => {
                         <span className="size-2 rounded-full bg-primary" />
                         {item.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Link
+                        href={`/imports/${item.id}/review`}
+                        className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
+                      >
+                        Review
+                      </Link>
                     </td>
                   </tr>
                 ))}

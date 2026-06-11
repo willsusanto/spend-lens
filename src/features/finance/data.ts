@@ -1,4 +1,5 @@
 export type TransactionStatus = 'Pending' | 'Review' | 'Approved';
+export type CategorizationSource = 'ollama' | 'heuristic';
 
 export type FinanceTransaction = {
   id: string;
@@ -9,6 +10,10 @@ export type FinanceTransaction = {
   category: string;
   confidence: number;
   status: TransactionStatus;
+  note?: string;
+  aiReason?: string;
+  categorizationSource?: CategorizationSource;
+  ollamaModel?: string;
   importId?: string;
   sourceFile?: string;
 };
@@ -25,7 +30,8 @@ export const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(Math.abs(amount));
 
 export const formatSignedCurrency = (amount: number) => {
@@ -85,10 +91,30 @@ export const seedImports: ImportBatch[] = [
 
 export const spendingByCategory = [
   { name: 'Groceries', amount: '$420.00', percent: 75, tone: 'bg-primary' },
-  { name: 'Dining Out', amount: '$285.50', percent: 45, tone: 'bg-[hsl(var(--surface-tint))]' },
-  { name: 'Transportation', amount: '$150.00', percent: 30, tone: 'bg-[hsl(var(--outline))]' },
-  { name: 'Entertainment', amount: '$95.00', percent: 15, tone: 'bg-[hsl(var(--outline-variant))]' },
-  { name: 'Utilities', amount: '$290.00', percent: 50, tone: 'bg-secondary-foreground' },
+  {
+    name: 'Dining Out',
+    amount: '$285.50',
+    percent: 45,
+    tone: 'bg-[hsl(var(--surface-tint))]',
+  },
+  {
+    name: 'Transportation',
+    amount: '$150.00',
+    percent: 30,
+    tone: 'bg-[hsl(var(--outline))]',
+  },
+  {
+    name: 'Entertainment',
+    amount: '$95.00',
+    percent: 15,
+    tone: 'bg-[hsl(var(--outline-variant))]',
+  },
+  {
+    name: 'Utilities',
+    amount: '$290.00',
+    percent: 50,
+    tone: 'bg-secondary-foreground',
+  },
 ];
 
 export const seedTransactions: FinanceTransaction[] = [
@@ -137,11 +163,24 @@ export const seedTransactions: FinanceTransaction[] = [
     date: 'Oct 15, 2023',
     merchant: 'Stripe Payout',
     description: 'STRIPE TRANSFER',
-    amount: 1240.5,
+    amount: 1240,
     category: 'Income',
     confidence: 100,
     status: 'Pending',
   },
 ];
 
-export const categories = ['Groceries', 'Housing', 'Utilities'];
+export const categories = [
+  'Income',
+  'Food & Dining',
+  'Groceries',
+  'Transportation',
+  'Subscriptions',
+  'Shopping',
+  'Transfer',
+  'Software',
+  'Utilities',
+  'Health',
+  'Travel',
+  'Uncategorized',
+];

@@ -2,6 +2,7 @@
 
 import { AlertCircle, FileText, Upload } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DragEvent, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
@@ -50,7 +51,9 @@ const buildCategorySpending = (
 
 export const HomeDashboard = () => {
   const { imports, importCsv, message, stats, transactions } = useFinanceData();
+  const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const categorySpending = useMemo(
     () => buildCategorySpending(transactions),
@@ -83,7 +86,14 @@ export const HomeDashboard = () => {
       return;
     }
 
-    await importCsv(file);
+    setIsImporting(true);
+
+    try {
+      const result = await importCsv(file);
+      router.push(`/imports/${result.batch.id}/review`);
+    } finally {
+      setIsImporting(false);
+    }
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -166,17 +176,19 @@ export const HomeDashboard = () => {
                 className="sr-only"
                 type="file"
                 accept=".csv,text/csv"
+                disabled={isImporting}
                 onChange={(event) => handleFiles(event.target.files)}
               />
               <span className="mb-4 grid size-[4.5rem] place-items-center rounded-xl bg-[hsl(var(--surface-high))] transition-transform duration-300 group-hover:scale-105">
                 <Upload className="size-8" aria-hidden="true" />
               </span>
               <span className="text-xl font-semibold leading-7">
-                Upload CSV
+                {isImporting ? 'Categorizing with Ollama' : 'Upload CSV'}
               </span>
               <span className="mt-2 max-w-md text-pretty text-sm leading-5 text-[hsl(var(--on-surface-variant))]">
-                Drag and drop your bank export files here, or click to browse.
-                Supported format: .csv
+                {isImporting
+                  ? 'Keep this page open. You will be redirected to review when categorization finishes or times out.'
+                  : 'Drag and drop your bank export files here, or click to browse. Supported format: .csv'}
               </span>
               {message ? (
                 <span className="mt-4 rounded bg-[hsl(var(--surface-highest))] px-3 py-1 text-xs font-medium">
