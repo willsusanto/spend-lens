@@ -1,28 +1,32 @@
-# Next.js App Application
+# LedgerLocal
 
-## Get Started
+Local-first personal finance cleanup built with Next.js, React, TypeScript, and
+Tailwind CSS.
+
+The app is aimed at a weekly workflow:
+
+- upload exported bank or card CSV files
+- categorize transactions locally
+- review uncertain rows
+- save corrections as reusable knowledge
+
+## Development
 
 Prerequisites:
 
 - Node 20+
 - Yarn 1.22+
 
-To set up the app execute the following commands.
-
 ```bash
-git clone https://github.com/alan2207/bulletproof-react.git
-cd bulletproof-react
-cd apps/nextjs-app
 cp .env.example .env
 yarn install
+yarn dev
 ```
 
-#### `yarn run-mock-server`
+Open [http://localhost:3000](http://localhost:3000).
 
-Make sure to start the mock server before running the app.
-The mock server runs on [http://localhost:8080/api](http://localhost:8080/api).
+## Current Scope
 
-##### `yarn dev`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+The first implemented screen is the weekly summary dashboard. Transactions,
+imports, settings, SQLite persistence, CSV parsing, and Ollama categorization are
+next.

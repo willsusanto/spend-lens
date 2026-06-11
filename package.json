@@ -1,5 +1,5 @@
 {
-  "name": "bulletproof-react-nextjs-pages",
+  "name": "purse-thinker",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,13 +9,11 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
-    "test-e2e": "pm2 start \"yarn run-mock-server\" --name server && yarn playwright test",
     "prepare": "husky",
     "check-types": "tsc --project tsconfig.json --pretty --noEmit",
     "generate": "plop",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "run-mock-server": "tsx ./mock-server.ts"
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
