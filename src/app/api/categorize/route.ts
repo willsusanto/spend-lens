@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { env } from '@/config/env';
 import {
   CategorizationSource,
   FinanceTransaction,
@@ -14,6 +15,12 @@ type CategorizeRequest = {
 
 type OllamaGenerateResponse = {
   response?: string;
+  done?: boolean;
+  done_reason?: string;
+  error?: string;
+  prompt_eval_count?: number;
+  eval_count?: number;
+  total_duration?: number;
 };
 
 type OllamaTagsResponse = {
@@ -34,6 +41,11 @@ type OllamaCategorizedResponse = {
   items?: OllamaCategorizedItem[];
 };
 
+type OllamaCategorizedEnvelope = {
+  items?: unknown;
+  transactions?: unknown;
+};
+
 const categories = [
   'Income',
   'Food & Dining',
@@ -49,6 +61,36 @@ const categories = [
   'Uncategorized',
 ] as const;
 
+const ollamaResponseFormat = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          category: { type: 'string', enum: categories },
+          confidence: { type: 'number' },
+          reason: { type: 'string' },
+        },
+        required: ['id', 'category', 'confidence', 'reason'],
+      },
+    },
+  },
+  required: ['items'],
+} as const;
+
+const logOllama = (message: string, context?: Record<string, unknown>) => {
+  console.log(`[ollama] ${message}`, context ?? {});
+};
+
+const truncateForLog = (value = '', maxLength = 2_000) =>
+  value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+
+const getFormatName = (format: typeof ollamaResponseFormat | 'json') =>
+  typeof format === 'string' ? format : 'schema';
+
 const clampConfidence = (value: unknown) => {
   const parsed = typeof value === 'number' ? value : Number(value);
 
@@ -62,16 +104,91 @@ const clampConfidence = (value: unknown) => {
 const getStatus = (category: string, confidence: number): TransactionStatus =>
   category === 'Uncategorized' || confidence < 70 ? 'Review' : 'Pending';
 
-const extractJson = (value: string) => {
-  const trimmed = value.trim();
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
-  if (start < 0 || end < start) {
-    throw new Error('Ollama response did not contain a JSON object.');
+const isCategorizedItem = (
+  item: unknown,
+): item is Required<OllamaCategorizedItem> => {
+  if (!isObjectRecord(item)) {
+    return false;
   }
 
-  return JSON.parse(trimmed.slice(start, end + 1)) as OllamaCategorizedResponse;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.category === 'string' &&
+    typeof item.reason === 'string' &&
+    item.confidence !== undefined
+  );
+};
+
+const getJsonSlice = (value: string, startChar: string, endChar: string) => {
+  const start = value.indexOf(startChar);
+  const end = value.lastIndexOf(endChar);
+
+  if (start < 0 || end < start) {
+    return;
+  }
+
+  return value.slice(start, end + 1);
+};
+
+const parseJsonText = (value: string): unknown => {
+  const trimmed = value
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  if (!trimmed) {
+    throw new Error('Ollama returned an empty response.');
+  }
+
+  const candidates = [
+    trimmed,
+    getJsonSlice(trimmed, '{', '}'),
+    getJsonSlice(trimmed, '[', ']'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  throw new Error('Ollama response did not contain parseable JSON.');
+};
+
+const normalizeCategorizedResponse = (
+  value: unknown,
+): OllamaCategorizedResponse => {
+  if (typeof value === 'string') {
+    return normalizeCategorizedResponse(parseJsonText(value));
+  }
+
+  if (Array.isArray(value)) {
+    return { items: value as OllamaCategorizedItem[] };
+  }
+
+  if (value && typeof value === 'object') {
+    const envelope = value as OllamaCategorizedEnvelope;
+
+    if (Array.isArray(envelope.items)) {
+      return { items: envelope.items as OllamaCategorizedItem[] };
+    }
+
+    if (Array.isArray(envelope.transactions)) {
+      return { items: envelope.transactions as OllamaCategorizedItem[] };
+    }
+  }
+
+  throw new Error('Ollama JSON used an unsupported response shape.');
+};
+
+const extractJson = (value: string) => {
+  return normalizeCategorizedResponse(parseJsonText(value));
 };
 
 const applyFallback = (
@@ -81,14 +198,19 @@ const applyFallback = (
   transactions.map((transaction) => ({
     ...transaction,
     status: getStatus(transaction.category, transaction.confidence),
-    aiReason: `Ollama was unavailable, so this row is using the local CSV rule result. ${detail}`,
+    aiReason: `Ollama categorization could not be applied, so this row is using the local CSV rule result. ${detail}`,
     categorizationSource: 'heuristic' satisfies CategorizationSource,
   }));
 
 const buildPrompt = (transactions: FinanceTransaction[]) => `
-You categorize personal bank transactions for a local-first finance app.
+You are a JSON-only transaction categorizer for a local-first finance app.
 
-Return only JSON in this exact shape:
+Your entire response must be one valid JSON object. It must start with { and end with }.
+Do not output markdown, code fences, comments, explanations, or trailing commas.
+The "items" array must contain exactly ${transactions.length} object(s).
+Every "items" array element must be an object. Never output strings or placeholders like "item_2".
+
+Return exactly one item for each input transaction id in this exact shape:
 {
   "items": [
     {
@@ -104,9 +226,11 @@ Allowed categories:
 ${categories.join(', ')}
 
 Rules:
+- Copy each transaction id exactly.
 - Use Income only for credits, salary, payouts, deposits, refunds, or incoming transfers.
 - Use Transfer for person-to-person or account movement when no spending category is clear.
 - Use Uncategorized when the merchant or description is too ambiguous.
+- If uncertain, use category "Uncategorized" with confidence 31.
 - Evaluate each row independently. Do not copy merchant details from another row.
 - The reason must only cite text present in that row or the category rule used.
 - Confidence is 0-100. Use under 70 when a human should review it.
@@ -127,23 +251,49 @@ ${JSON.stringify(
 `;
 
 const getInstalledModel = async (endpoint: string) => {
+  logOllama('Listing installed models', { endpoint });
+
   const response = await fetch(`${endpoint}/api/tags`);
 
   if (!response.ok) {
+    logOllama('Model list request failed', {
+      endpoint,
+      status: response.status,
+      statusText: response.statusText,
+    });
     throw new Error(`Could not list Ollama models: ${response.status}.`);
   }
 
   const payload = (await response.json()) as OllamaTagsResponse;
   const model = payload.models?.find((item) => item.name || item.model);
+  const installedModel = model?.name ?? model?.model;
 
-  return model?.name ?? model?.model;
+  logOllama('Installed model probe complete', {
+    endpoint,
+    model: installedModel,
+    modelCount: payload.models?.length ?? 0,
+  });
+
+  return installedModel;
 };
 
 const generateCategories = async (
   endpoint: string,
   model: string,
   transactions: FinanceTransaction[],
+  format: typeof ollamaResponseFormat | 'json' = 'json',
 ) => {
+  const prompt = buildPrompt(transactions);
+  const formatName = getFormatName(format);
+
+  logOllama('Generating categories', {
+    endpoint,
+    model,
+    format: formatName,
+    promptLength: prompt.length,
+    transactionCount: transactions.length,
+  });
+
   const response = await fetch(`${endpoint}/api/generate`, {
     method: 'POST',
     headers: {
@@ -151,20 +301,61 @@ const generateCategories = async (
     },
     body: JSON.stringify({
       model,
-      prompt: buildPrompt(transactions),
+      prompt,
       stream: false,
-      format: 'json',
+      format,
       options: {
         temperature: 0,
+        num_ctx: 8192,
       },
     }),
   });
 
   if (!response.ok) {
+    logOllama('Generate request failed', {
+      endpoint,
+      model,
+      format: formatName,
+      status: response.status,
+      statusText: response.statusText,
+    });
     throw new Error(`Ollama returned ${response.status}.`);
   }
 
-  return (await response.json()) as OllamaGenerateResponse;
+  const payload = (await response.json()) as OllamaGenerateResponse;
+
+  logOllama('Generate request complete', {
+    endpoint,
+    model,
+    format: formatName,
+    done: payload.done,
+    doneReason: payload.done_reason,
+    error: payload.error,
+    hasResponse: Boolean(payload.response),
+    responseLength: payload.response?.length ?? 0,
+    promptEvalCount: payload.prompt_eval_count,
+    evalCount: payload.eval_count,
+    totalDuration: payload.total_duration,
+  });
+  logOllama('Raw generate response', {
+    endpoint,
+    model,
+    format: formatName,
+    response: truncateForLog(payload.response),
+  });
+
+  if (!payload.response?.trim() && format !== 'json') {
+    logOllama('Empty schema response, retrying with json mode', {
+      endpoint,
+      model,
+      promptLength: prompt.length,
+      transactionCount: transactions.length,
+    });
+
+    return generateCategories(endpoint, model, transactions, 'json');
+  }
+
+  return payload;
 };
 
 export async function POST(request: Request) {
@@ -186,10 +377,14 @@ export async function POST(request: Request) {
     });
   }
 
-  const endpoint = (
-    process.env.OLLAMA_ENDPOINT ?? 'http://localhost:11434'
-  ).replace(/\/$/, '');
-  const model = process.env.OLLAMA_MODEL ?? 'llama3.1';
+  const endpoint = env.OLLAMA_ENDPOINT.replace(/\/$/, '');
+  const model = env.OLLAMA_MODEL;
+
+  logOllama('Categorization request received', {
+    endpoint,
+    model,
+    transactionCount: transactions.length,
+  });
 
   try {
     let activeModel = model;
@@ -204,6 +399,11 @@ export async function POST(request: Request) {
         throw error;
       }
 
+      logOllama('Configured model was not found, probing installed models', {
+        endpoint,
+        configuredModel: activeModel,
+      });
+
       const installedModel = await getInstalledModel(endpoint);
 
       if (!installedModel) {
@@ -214,14 +414,36 @@ export async function POST(request: Request) {
       payload = await generateCategories(endpoint, activeModel, transactions);
     }
 
-    const categorized = extractJson(payload.response ?? '{}');
+    let categorized: OllamaCategorizedResponse;
+
+    try {
+      categorized = extractJson(payload.response ?? '');
+    } catch (error) {
+      logOllama('Could not parse generate response', {
+        endpoint,
+        model: activeModel,
+        error: error instanceof Error ? error.message : 'Unknown error.',
+        response: truncateForLog(payload.response),
+      });
+      throw error;
+    }
+
     const byId = new Map(
       (categorized.items ?? [])
-        .filter((item): item is Required<OllamaCategorizedItem> =>
-          Boolean(item.id && item.category && item.reason),
-        )
+        .filter(isCategorizedItem)
         .map((item) => [item.id, item]),
     );
+
+    if (byId.size !== transactions.length) {
+      logOllama('Generate response item count mismatch', {
+        endpoint,
+        model: activeModel,
+        expectedCount: transactions.length,
+        validItemCount: byId.size,
+        rawItemCount: categorized.items?.length ?? 0,
+        response: truncateForLog(payload.response),
+      });
+    }
 
     const updatedTransactions = transactions.map((transaction) => {
       const result = byId.get(transaction.id);
@@ -254,6 +476,12 @@ export async function POST(request: Request) {
       };
     });
 
+    logOllama('Categorization request succeeded', {
+      endpoint,
+      model: activeModel,
+      transactionCount: updatedTransactions.length,
+    });
+
     return NextResponse.json({
       transactions: updatedTransactions,
       source: 'ollama',
@@ -262,6 +490,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown error.';
+
+    logOllama('Falling back to heuristic categorization', {
+      endpoint,
+      model,
+      transactionCount: transactions.length,
+      error: detail,
+    });
 
     return NextResponse.json({
       transactions: applyFallback(transactions, detail),

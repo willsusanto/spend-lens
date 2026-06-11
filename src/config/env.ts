@@ -3,12 +3,9 @@ import 'dotenv/config';
 
 const createEnv = () => {
   const EnvSchema = z.object({
-    APP_URL: z.string().optional().default('http://localhost:3000'),
-    OLLAMA_ENDPOINT: z
-      .string()
-      .optional()
-      .default('http://localhost:11434'),
-    OLLAMA_MODEL: z.string().optional().default('llama3.1'),
+    APP_URL: z.string().url().default('http://localhost:3000'),
+    OLLAMA_ENDPOINT: z.string().url().default('http://localhost:11434'),
+    OLLAMA_MODEL: z.string().default('gemma4:12b'),
     DATABASE_URL: z.string().optional().default('file:./data/ledgerlocal.db'),
   });
 
