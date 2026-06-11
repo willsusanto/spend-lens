@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Transaction Detail - LedgerLocal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#47464a",
+                        "primary-fixed": "#e5e1e4",
+                        "on-primary-fixed": "#1c1b1d",
+                        "background": "#fdf8f8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#ebe7e7",
+                        "on-primary-container": "#858386",
+                        "surface-container-highest": "#e5e2e1",
+                        "on-secondary-container": "#63646c",
+                        "surface-dim": "#ddd9d9",
+                        "outline-variant": "#c8c5ca",
+                        "surface-variant": "#e5e2e1",
+                        "on-secondary-fixed-variant": "#46464e",
+                        "secondary-fixed-dim": "#c6c5cf",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#8a8282",
+                        "inverse-surface": "#313030",
+                        "primary-fixed-dim": "#c8c6c8",
+                        "on-tertiary-fixed-variant": "#4c4545",
+                        "secondary-fixed": "#e3e1ec",
+                        "outline": "#78767b",
+                        "on-background": "#1c1b1b",
+                        "inverse-on-surface": "#f4f0ef",
+                        "surface-tint": "#5f5e60",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#e3e1ec",
+                        "on-secondary-fixed": "#1a1b22",
+                        "surface-bright": "#fdf8f8",
+                        "inverse-primary": "#c8c6c8",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#ebe0df",
+                        "primary": "#000000",
+                        "surface-container-low": "#f7f3f2",
+                        "tertiary-container": "#1f1a1a",
+                        "tertiary-fixed-dim": "#cec4c4",
+                        "on-primary-fixed-variant": "#474649",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "surface-container": "#f1edec",
+                        "tertiary": "#000000",
+                        "on-tertiary-fixed": "#1f1a1a",
+                        "error": "#ba1a1a",
+                        "secondary": "#5d5e66",
+                        "on-surface": "#1c1b1b",
+                        "surface": "#fdf8f8",
+                        "primary-container": "#1c1b1d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "gutter": "16px",
+                        "scale": "{'xs': '4px', 'sm': '8px', 'md': '16px', 'lg': '24px', 'xl': '32px', '2xl': '48px', '3xl': '64px'}",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "code": ["Inter"],
+                        "h1": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "h1-mobile": ["Inter"],
+                        "label-md": ["Inter"],
+                        "h2": ["Inter"],
+                        "body-base": ["Inter"],
+                        "h3": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "code": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "h1": ["30px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "h1-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "h2": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-base": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "h3": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex antialiased">
+<!-- Suppressed SideNavBar because this is a focused task/detail screen with a 'Back' action -->
+<main class="flex-1 flex flex-col w-full max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop py-8">
+<!-- Header / Back Navigation -->
+<header class="flex items-center gap-2 mb-8">
+<a class="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors font-body-base text-body-base group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                Back to Transactions
+            </a>
+</header>
+<!-- Transaction Overview Header -->
+<div class="mb-8">
+<div class="flex items-start justify-between">
+<div>
+<h1 class="font-h1 text-h1 text-primary mb-1">AWS Web Services</h1>
+<p class="font-body-base text-body-base text-on-surface-variant">Posted on Oct 12, 2023 • Card ending in 4092</p>
+</div>
+<div class="text-right">
+<span class="font-h1 text-h1 text-primary block">-$142.50</span>
+<span class="inline-flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded text-on-surface-variant font-label-sm text-label-sm mt-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                        Pending Review
+                    </span>
+</div>
+</div>
+</div>
+<!-- Main Content Area -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Left Column: Details & Categorization -->
+<div class="md:col-span-2 flex flex-col gap-6">
+<!-- Categorization Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6">
+<h2 class="font-h3 text-h3 text-primary border-b border-outline-variant pb-4 mb-4">Categorization</h2>
+<div class="space-y-4">
+<div>
+<label class="block font-label-md text-label-md text-on-surface mb-2">Category</label>
+<div class="relative">
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2.5 font-body-base text-body-base text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary appearance-none">
+<option>Software &amp; Cloud</option>
+<option>Office Supplies</option>
+<option>Travel</option>
+<option>Uncategorized</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface mb-2">Internal Notes</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 font-body-base text-body-base text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary min-h-[100px]" placeholder="Add context for this expense..."></textarea>
+</div>
+</div>
+</div>
+<!-- Raw Data Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6">
+<h2 class="font-h3 text-h3 text-primary border-b border-outline-variant pb-4 mb-4">Raw Data</h2>
+<div class="grid grid-cols-2 gap-4 font-body-sm text-body-sm">
+<div>
+<span class="block text-on-surface-variant mb-1">Raw Description</span>
+<span class="font-code text-code text-on-surface bg-surface-container-high px-2 py-1 rounded">AMZN WEB SRVCS 888-802-3000 WA</span>
+</div>
+<div>
+<span class="block text-on-surface-variant mb-1">Reference ID</span>
+<span class="font-code text-code text-on-surface">REF-9284719-XJ</span>
+</div>
+<div>
+<span class="block text-on-surface-variant mb-1">MCC</span>
+<span class="font-code text-code text-on-surface">4816 (Computer Network/Info Services)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: AI & Actions -->
+<div class="flex flex-col gap-6">
+<!-- AI Insight Panel -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-surface-container-highest rounded-bl-full opacity-50 -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h2 class="font-h3 text-h3 text-primary">AI Insight</h2>
+</div>
+<div class="mb-4">
+<span class="font-label-md text-label-md text-on-surface-variant block mb-1">Confidence Score</span>
+<div class="flex items-center gap-3">
+<div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[31%]"></div>
+</div>
+<span class="font-label-md text-label-md text-primary font-bold">31%</span>
+</div>
+</div>
+<p class="font-body-base text-body-base text-on-surface-variant border-l-2 border-outline-variant pl-3">
+                        Suggested category: <strong>Software &amp; Cloud</strong>. However, the confidence is low due to inconsistent naming patterns from this merchant ID in recent months. Manual review recommended.
+                    </p>
+</div>
+<!-- Actions Panel -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-3">
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md py-2.5 rounded-lg hover:opacity-90 transition-opacity">
+                        Approve
+                    </button>
+<button class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-label-md text-label-md py-2.5 rounded-lg hover:bg-surface-container-high transition-colors">
+                        Save
+                    </button>
+<button class="w-full bg-transparent text-primary font-label-md text-label-md py-2.5 rounded-lg hover:bg-surface-container-low transition-colors">
+                        Save &amp; Create Rule
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>
