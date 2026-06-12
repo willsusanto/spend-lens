@@ -1,21 +1,21 @@
 import { Cable, Link as LinkIcon, Package, Plus, Trash2 } from 'lucide-react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { categories } from '@/features/finance/data';
 
 const SettingsPage = () => {
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-3xl space-y-8 p-4 pb-24 md:p-8">
-        <header>
-          <h1 className="text-3xl font-bold leading-9">Settings</h1>
-          <p className="mt-2 text-sm text-[hsl(var(--on-surface-variant))] text-pretty">
-            Manage categories, CSV mappings, and local Ollama categorization.
-          </p>
-        </header>
+      <PageContainer size="narrow" flow="space">
+        <PageHeader
+          title="Settings"
+          description="Manage categories, CSV mappings, and local Ollama categorization."
+        />
 
-        <section className="overflow-clip rounded-lg border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-          <div className="flex flex-col gap-4 border-b border-[hsl(var(--outline-variant))] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <Panel clipped>
+          <PanelHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">Categories</h2>
               <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
@@ -33,7 +33,7 @@ const SettingsPage = () => {
                 Add
               </button>
             </label>
-          </div>
+          </PanelHeader>
           <ul className="divide-y divide-[hsl(var(--outline-variant))]">
             {categories.map((category) => (
               <li
@@ -51,15 +51,15 @@ const SettingsPage = () => {
               </li>
             ))}
           </ul>
-        </section>
+        </Panel>
 
-        <section className="rounded-lg border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-          <div className="border-b border-[hsl(var(--outline-variant))] p-5">
+        <Panel>
+          <PanelHeader>
             <h2 className="text-xl font-semibold">CSV Column Mapping</h2>
             <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
               Map bank CSV headers to standard ledger fields.
             </p>
-          </div>
+          </PanelHeader>
           <div className="grid gap-6 p-5 md:grid-cols-3">
             {['Transaction Date', 'Amount', 'Description'].map((field) => (
               <label key={field} className="grid gap-2">
@@ -73,10 +73,10 @@ const SettingsPage = () => {
               </label>
             ))}
           </div>
-        </section>
+        </Panel>
 
-        <section className="rounded-lg border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-          <div className="border-b border-[hsl(var(--outline-variant))] p-5">
+        <Panel>
+          <PanelHeader>
             <h2 className="flex items-center gap-2 text-xl font-semibold">
               <Package className="size-5" aria-hidden="true" />
               Intelligence
@@ -84,7 +84,7 @@ const SettingsPage = () => {
             <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
               Configure local LLM settings for auto-categorization via Ollama.
             </p>
-          </div>
+          </PanelHeader>
           <div className="space-y-6 p-5">
             <label className="grid max-w-lg gap-2">
               <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
@@ -121,8 +121,8 @@ const SettingsPage = () => {
               </button>
             </div>
           </div>
-        </section>
-      </div>
+        </Panel>
+      </PageContainer>
     </AppShell>
   );
 };

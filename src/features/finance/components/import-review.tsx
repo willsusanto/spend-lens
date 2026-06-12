@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel } from '@/components/ui/panel';
+import { MetricCard } from '@/features/finance/components/metric-card';
 import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
@@ -38,55 +41,54 @@ export const ImportReview = ({ importId }: { importId: string }) => {
   if (!hydrated) {
     return (
       <AppShell>
-        <div className="mx-auto w-full max-w-[90rem] p-4 md:p-8">
-          <p className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-3 text-sm">
+        <PageContainer>
+          <Panel as="p" className="px-4 py-3 text-sm">
             Loading imported transactions...
-          </p>
-        </div>
+          </Panel>
+        </PageContainer>
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <div className="mx-auto grid w-full max-w-[90rem] content-start gap-6 p-4 md:p-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
+      <PageContainer flow="grid">
+        <PageHeader
+          title="Review Imported Transactions"
+          description={
+            batch
+              ? `${batch.fileName} · ${batch.rows} rows · ${batch.status}`
+              : 'Imported batch not found in local storage.'
+          }
+          eyebrow={
             <Link
               href="/imports"
-              className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
+              className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
               Imports
             </Link>
-            <h1 className="mt-3 text-2xl font-bold leading-8 md:text-3xl md:leading-9">
-              Review Imported Transactions
-            </h1>
-            <p className="mt-1 text-sm text-[hsl(var(--on-surface-variant))]">
-              {batch
-                ? `${batch.fileName} · ${batch.rows} rows · ${batch.status}`
-                : 'Imported batch not found in local storage.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/transactions"
-              className="inline-flex min-h-10 items-center justify-center rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-2 text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
-            >
-              Open Transactions
-            </Link>
-            <button
-              type="button"
-              className="inline-flex min-h-10 items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-              disabled={importedTransactions.length === 0}
-              onClick={() => confirmImport(importId)}
-            >
-              <ListChecks className="size-4" aria-hidden="true" />
-              Confirm Import
-            </button>
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <Link
+                href="/transactions"
+                className="inline-flex min-h-10 items-center justify-center rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-2 text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
+              >
+                Open Transactions
+              </Link>
+              <button
+                type="button"
+                className="inline-flex min-h-10 items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                disabled={importedTransactions.length === 0}
+                onClick={() => confirmImport(importId)}
+              >
+                <ListChecks className="size-4" aria-hidden="true" />
+                Confirm Import
+              </button>
+            </>
+          }
+        />
 
         {importedTransactions.length > 0 ? (
           <>
@@ -112,24 +114,16 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   helper: 'Ready for the weekly summary',
                 },
               ].map((metric) => (
-                <article
+                <MetricCard
                   key={metric.label}
-                  className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-4"
-                >
-                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-[hsl(var(--on-surface-variant))]">
-                    {metric.label}
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold leading-8">
-                    {metric.value}
-                  </p>
-                  <p className="mt-2 text-xs text-[hsl(var(--outline))]">
-                    {metric.helper}
-                  </p>
-                </article>
+                  label={metric.label}
+                  value={metric.value}
+                  helper={metric.helper}
+                />
               ))}
             </section>
 
-            <section className="overflow-clip rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
+            <Panel clipped>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[74rem] border-collapse text-left text-sm">
                   <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
@@ -276,18 +270,18 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </Panel>
           </>
         ) : (
-          <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-6">
+          <Panel className="p-6">
             <h2 className="text-base font-semibold">No rows found</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--on-surface-variant))]">
               This import is not available in local storage. Upload a CSV again
               or open the full transactions list.
             </p>
-          </section>
+          </Panel>
         )}
-      </div>
+      </PageContainer>
     </AppShell>
   );
 };

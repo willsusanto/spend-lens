@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
@@ -83,11 +85,11 @@ export const TransactionDetail = ({
   if (!hydrated) {
     return (
       <AppShell>
-        <div className="mx-auto w-full max-w-[90rem] p-4 md:p-8">
-          <p className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-3 text-sm">
+        <PageContainer>
+          <Panel as="p" className="px-4 py-3 text-sm">
             Loading transaction...
-          </p>
-        </div>
+          </Panel>
+        </PageContainer>
       </AppShell>
     );
   }
@@ -95,7 +97,7 @@ export const TransactionDetail = ({
   if (!transaction) {
     return (
       <AppShell>
-        <div className="mx-auto grid w-full max-w-3xl gap-4 p-4 md:p-8">
+        <PageContainer size="narrow" flow="grid" className="gap-4">
           <Link
             href="/transactions"
             className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
@@ -103,13 +105,13 @@ export const TransactionDetail = ({
             <ArrowLeft className="size-4" aria-hidden="true" />
             Back to Transactions
           </Link>
-          <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-6">
+          <Panel className="p-6">
             <h1 className="text-xl font-semibold">Transaction not found</h1>
             <p className="mt-2 text-sm text-[hsl(var(--on-surface-variant))]">
               This row is not available in local storage.
             </p>
-          </section>
-        </div>
+          </Panel>
+        </PageContainer>
       </AppShell>
     );
   }
@@ -121,61 +123,59 @@ export const TransactionDetail = ({
 
   return (
     <AppShell>
-      <form
-        className="mx-auto grid w-full max-w-[90rem] content-start gap-6 p-4 md:p-8"
-        onSubmit={handleSave}
-      >
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
+      <PageContainer as="form" flow="grid" onSubmit={handleSave}>
+        <PageHeader
+          title={transaction.merchant}
+          description={
+            <>
+              {transaction.date}
+              {transaction.sourceFile ? ` · ${transaction.sourceFile}` : ''}
+            </>
+          }
+          eyebrow={
             <Link
               href="/transactions"
-              className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
+              className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
               Transactions
             </Link>
-            <h1 className="mt-3 text-2xl font-bold leading-8 md:text-3xl md:leading-9">
-              {transaction.merchant}
-            </h1>
-            <p className="mt-1 text-sm text-[hsl(var(--on-surface-variant))]">
-              {transaction.date}
-              {transaction.sourceFile ? ` · ${transaction.sourceFile}` : ''}
-            </p>
-          </div>
-
-          <div className="md:text-right">
-            <p className="text-2xl font-semibold leading-8">
-              {formatSignedCurrency(transaction.amount)}
-            </p>
-            <span
-              className={cn(
-                'mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-                transaction.status === 'Approved'
-                  ? 'bg-primary text-primary-foreground'
-                  : needsReview
-                    ? 'bg-amber-100 text-amber-900'
-                    : 'bg-[hsl(var(--surface-high))]',
-              )}
-            >
-              {transaction.status === 'Approved' ? (
-                <Check className="size-3.5" aria-hidden="true" />
-              ) : (
-                <span className="size-1.5 rounded-full bg-current" />
-              )}
-              {needsReview && transaction.status !== 'Approved'
-                ? 'Needs review'
-                : transaction.status}
-            </span>
-          </div>
-        </div>
+          }
+          actions={
+            <div className="md:text-right">
+              <p className="text-2xl font-semibold leading-8">
+                {formatSignedCurrency(transaction.amount)}
+              </p>
+              <span
+                className={cn(
+                  'mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+                  transaction.status === 'Approved'
+                    ? 'bg-primary text-primary-foreground'
+                    : needsReview
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-[hsl(var(--surface-high))]',
+                )}
+              >
+                {transaction.status === 'Approved' ? (
+                  <Check className="size-3.5" aria-hidden="true" />
+                ) : (
+                  <span className="size-1.5 rounded-full bg-current" />
+                )}
+                {needsReview && transaction.status !== 'Approved'
+                  ? 'Needs review'
+                  : transaction.status}
+              </span>
+            </div>
+          }
+        />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="grid gap-6">
-            <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-5">
-              <h2 className="border-b border-[hsl(var(--outline-variant))] pb-4 text-base font-semibold">
-                Categorization
-              </h2>
-              <div className="mt-5 grid gap-5">
+            <Panel>
+              <PanelHeader className="p-5">
+                <h2 className="text-base font-semibold">Categorization</h2>
+              </PanelHeader>
+              <div className="grid gap-5 p-5">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium">Category</span>
                   <select
@@ -201,13 +201,13 @@ export const TransactionDetail = ({
                   />
                 </label>
               </div>
-            </section>
+            </Panel>
 
-            <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-5">
-              <h2 className="border-b border-[hsl(var(--outline-variant))] pb-4 text-base font-semibold">
-                Raw Source
-              </h2>
-              <dl className="mt-5 grid grid-cols-1 gap-4 text-xs md:grid-cols-2">
+            <Panel>
+              <PanelHeader className="p-5">
+                <h2 className="text-base font-semibold">Raw Source</h2>
+              </PanelHeader>
+              <dl className="grid grid-cols-1 gap-4 p-5 text-xs md:grid-cols-2">
                 <div>
                   <dt className="mb-1 text-[hsl(var(--on-surface-variant))]">
                     Original Description
@@ -241,13 +241,15 @@ export const TransactionDetail = ({
                   </dd>
                 </div>
               </dl>
-            </section>
+            </Panel>
 
-            <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-5">
-              <h2 className="border-b border-[hsl(var(--outline-variant))] pb-4 text-base font-semibold">
-                Similar Transactions
-              </h2>
-              <div className="mt-2 divide-y divide-[hsl(var(--outline-variant))]">
+            <Panel>
+              <PanelHeader className="p-5">
+                <h2 className="text-base font-semibold">
+                  Similar Transactions
+                </h2>
+              </PanelHeader>
+              <div className="divide-y divide-[hsl(var(--outline-variant))] px-5 py-2">
                 {similarTransactions.length > 0 ? (
                   similarTransactions.map((item) => (
                     <Link
@@ -274,11 +276,11 @@ export const TransactionDetail = ({
                   </p>
                 )}
               </div>
-            </section>
+            </Panel>
           </div>
 
           <aside className="grid content-start gap-6">
-            <section className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-5">
+            <Panel className="p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Sparkles className="size-5" aria-hidden="true" />
                 <h2 className="text-base font-semibold">AI Suggestion</h2>
@@ -308,9 +310,9 @@ export const TransactionDetail = ({
                   ? transaction.ollamaModel
                   : 'Local fallback'}
               </p>
-            </section>
+            </Panel>
 
-            <section className="grid gap-3 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-5">
+            <Panel className="grid gap-3 p-5">
               <button
                 type="submit"
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-high))]"
@@ -335,10 +337,10 @@ export const TransactionDetail = ({
                 Next Needs Review
                 <ChevronRight className="size-4" aria-hidden="true" />
               </button>
-            </section>
+            </Panel>
           </aside>
         </div>
-      </form>
+      </PageContainer>
     </AppShell>
   );
 };

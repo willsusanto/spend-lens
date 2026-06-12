@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { DragEvent, useMemo, useRef, useState } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel, PanelHeader } from '@/components/ui/panel';
+import { MetricCard } from '@/features/finance/components/metric-card';
 import {
   formatCurrency,
   spendingByCategory as fallbackSpending,
@@ -108,55 +111,39 @@ export const HomeDashboard = () => {
 
   return (
     <AppShell>
-      <div className="mx-auto grid w-full max-w-[90rem] content-start gap-8">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-balance text-2xl font-bold leading-8 md:text-3xl md:leading-9">
-              Weekly Summary
-            </h1>
-            <p className="mt-1 text-sm text-[hsl(var(--on-surface-variant))]">
-              Oct 16 - Oct 22, 2023
-            </p>
-          </div>
-          <Link
-            href="/transactions"
-            className="inline-flex min-h-10 items-center justify-center self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 md:self-auto"
-          >
-            Go to Transactions
-          </Link>
-        </header>
+      <PageContainer flow="grid" className="gap-8">
+        <PageHeader
+          title="Weekly Summary"
+          description="Oct 16 - Oct 22, 2023"
+          actions={
+            <Link
+              href="/transactions"
+              className="inline-flex min-h-10 items-center justify-center self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 md:self-auto"
+            >
+              Go to Transactions
+            </Link>
+          }
+        />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
           <section className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:col-span-12">
             {metrics.map((metric) => (
-              <article
+              <MetricCard
                 key={metric.label}
-                className="relative rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-4"
-              >
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-[hsl(var(--on-surface-variant))]">
-                  {metric.label}
-                </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <p className="text-2xl font-semibold leading-8">
-                    {metric.value}
-                  </p>
-                  {metric.unit ? (
-                    <span className="rounded bg-[hsl(var(--surface-highest))] px-2 py-1 text-[0.8125rem] leading-5">
-                      {metric.unit}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-3 text-xs text-[hsl(var(--outline))]">
-                  {metric.helper}
-                </p>
-                {metric.unit ? (
-                  <AlertCircle
-                    className="absolute right-4 top-4 size-9 text-[hsl(var(--outline-variant))]"
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                ) : null}
-              </article>
+                label={metric.label}
+                value={metric.value}
+                unit={metric.unit}
+                helper={metric.helper}
+                adornment={
+                  metric.unit ? (
+                    <AlertCircle
+                      className="absolute right-4 top-4 size-9 text-[hsl(var(--outline-variant))]"
+                      strokeWidth={1.75}
+                      aria-hidden="true"
+                    />
+                  ) : null
+                }
+              />
             ))}
           </section>
 
@@ -197,8 +184,8 @@ export const HomeDashboard = () => {
               ) : null}
             </label>
 
-            <article className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-              <div className="flex items-center justify-between border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3">
+            <Panel as="article">
+              <PanelHeader className="flex items-center justify-between bg-[hsl(var(--surface-low))] px-4 py-3">
                 <h2 className="text-sm font-semibold">Recent Imports</h2>
                 <Link
                   href="/imports"
@@ -206,7 +193,7 @@ export const HomeDashboard = () => {
                 >
                   View All
                 </Link>
-              </div>
+              </PanelHeader>
               <div className="min-w-0">
                 <table className="w-full table-fixed border-collapse text-left">
                   <thead>
@@ -259,10 +246,10 @@ export const HomeDashboard = () => {
                   </tbody>
                 </table>
               </div>
-            </article>
+            </Panel>
           </section>
 
-          <aside className="rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-4 lg:col-span-4">
+          <Panel as="aside" className="p-4 lg:col-span-4">
             <h2 className="text-sm font-semibold">Spending by Category</h2>
             <div
               className="flex min-h-80 flex-col justify-center gap-5 lg:min-h-[22rem]"
@@ -296,9 +283,9 @@ export const HomeDashboard = () => {
                 ))}
               </tbody>
             </table>
-          </aside>
+          </Panel>
         </div>
-      </div>
+      </PageContainer>
     </AppShell>
   );
 };

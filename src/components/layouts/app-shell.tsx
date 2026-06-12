@@ -23,11 +23,19 @@ const navigation = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export const AppShell = ({ children }: { children: ReactNode }) => {
+type AppShellProps = {
+  children: ReactNode;
+  contentPadding?: boolean;
+};
+
+export const AppShell = ({
+  children,
+  contentPadding = true,
+}: AppShellProps) => {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))] md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="fixed inset-0 flex h-dvh flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))] md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="hidden min-h-0 border-r border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] p-4 md:flex md:flex-col">
         <Link href="/" className="mb-8 flex items-center gap-3 px-2">
           <span className="grid size-8 place-items-center rounded bg-primary text-primary-foreground">
@@ -91,7 +99,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         </button>
       </div>
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+      <main
+        className={cn(
+          'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
+          contentPadding && 'p-4 pb-24 md:p-8',
+        )}
+      >
         {children}
       </main>
 

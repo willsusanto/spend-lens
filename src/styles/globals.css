@@ -77,6 +77,16 @@
   }
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html {
+  background: hsl(var(--background));
+}
+
 body {
   margin: 0;
   font-family:

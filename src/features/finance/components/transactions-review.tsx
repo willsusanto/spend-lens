@@ -157,7 +157,7 @@ export const TransactionsReview = () => {
   };
 
   return (
-    <AppShell>
+    <AppShell contentPadding={false}>
       <div className="flex min-h-dvh flex-col bg-[hsl(var(--background))] md:h-dvh md:min-h-0">
         <header className="flex shrink-0 flex-col gap-4 border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-6 md:flex-row md:items-end md:justify-between md:px-8">
           <div>

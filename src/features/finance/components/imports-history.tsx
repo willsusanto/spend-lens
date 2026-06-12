@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel } from '@/components/ui/panel';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 
 export const ImportsHistory = () => {
@@ -30,34 +32,32 @@ export const ImportsHistory = () => {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-[90rem] p-4 md:p-8">
-        <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold leading-9">Imports</h1>
-            <p className="mt-1 text-sm text-[hsl(var(--on-surface-variant))]">
-              Uploaded CSV batches and categorization progress.
-            </p>
-          </div>
-          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground md:self-auto">
-            <Upload className="size-4" aria-hidden="true" />
-            Upload CSV
-            <input
-              ref={inputRef}
-              className="sr-only"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => handleFiles(event.target.files)}
-            />
-          </label>
-        </header>
+      <PageContainer flow="grid" className="gap-8">
+        <PageHeader
+          title="Imports"
+          description="Uploaded CSV batches and categorization progress."
+          actions={
+            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground md:self-auto">
+              <Upload className="size-4" aria-hidden="true" />
+              Upload CSV
+              <input
+                ref={inputRef}
+                className="sr-only"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => handleFiles(event.target.files)}
+              />
+            </label>
+          }
+        />
 
         {message ? (
-          <p className="mb-4 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-3 text-sm">
+          <Panel as="p" className="px-4 py-3 text-sm">
             {message}
-          </p>
+          </Panel>
         ) : null}
 
-        <section className="overflow-clip rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
+        <Panel clipped>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[40rem] text-left text-sm">
               <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
@@ -99,8 +99,8 @@ export const ImportsHistory = () => {
               </tbody>
             </table>
           </div>
-        </section>
-      </div>
+        </Panel>
+      </PageContainer>
     </AppShell>
   );
 };
