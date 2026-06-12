@@ -61,26 +61,6 @@ const categories = [
   'Uncategorized',
 ] as const;
 
-const ollamaResponseFormat = {
-  type: 'object',
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          category: { type: 'string', enum: categories },
-          confidence: { type: 'number' },
-          reason: { type: 'string' },
-        },
-        required: ['id', 'category', 'confidence', 'reason'],
-      },
-    },
-  },
-  required: ['items'],
-} as const;
-
 const logOllama = (message: string, context?: Record<string, unknown>) => {
   console.log(`[ollama] ${message}`, context ?? {});
 };
@@ -88,7 +68,9 @@ const logOllama = (message: string, context?: Record<string, unknown>) => {
 const truncateForLog = (value = '', maxLength = 2_000) =>
   value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 
-const getFormatName = (format: typeof ollamaResponseFormat | 'json') =>
+type OllamaGenerateFormat = Record<string, unknown> | 'json';
+
+const getFormatName = (format: OllamaGenerateFormat) =>
   typeof format === 'string' ? format : 'schema';
 
 const clampConfidence = (value: unknown) => {
@@ -281,7 +263,7 @@ const generateCategories = async (
   endpoint: string,
   model: string,
   transactions: FinanceTransaction[],
-  format: typeof ollamaResponseFormat | 'json' = 'json',
+  format: OllamaGenerateFormat = 'json',
 ) => {
   const prompt = buildPrompt(transactions);
   const formatName = getFormatName(format);

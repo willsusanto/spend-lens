@@ -187,7 +187,7 @@ export const TransactionsReview = () => {
           </div>
         </header>
 
-        <search className="flex shrink-0 flex-wrap items-center gap-4 px-4 py-4 md:px-8">
+        <search className="flex shrink-0 flex-wrap items-center gap-4 p-4 md:px-8">
           <label className="relative min-w-60 flex-1 md:max-w-sm">
             <Search
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--on-surface-variant))]"
@@ -352,7 +352,7 @@ export const TransactionsReview = () => {
                     ].map((header) => (
                       <th
                         key={header}
-                        className="p-4 text-balance text-sm font-medium text-[hsl(var(--on-surface-variant))]"
+                        className="text-balance p-4 text-sm font-medium text-[hsl(var(--on-surface-variant))]"
                       >
                         {header}
                       </th>

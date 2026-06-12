@@ -155,10 +155,10 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               'border-l-4 border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/25',
                           )}
                         >
-                          <td className="whitespace-nowrap px-4 py-4 text-[hsl(var(--on-surface-variant))]">
+                          <td className="whitespace-nowrap p-4 text-[hsl(var(--on-surface-variant))]">
                             {transaction.date}
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="p-4">
                             <Link
                               href={`/transactions/${transaction.id}`}
                               className="font-medium hover:underline"
@@ -169,10 +169,10 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               {transaction.description}
                             </p>
                           </td>
-                          <td className="px-4 py-4 text-right font-mono font-medium">
+                          <td className="p-4 text-right font-mono font-medium">
                             {formatSignedCurrency(transaction.amount)}
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="p-4">
                             <label className="grid gap-2">
                               <span className="sr-only">
                                 Category for {transaction.merchant}
@@ -204,7 +204,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                 : 'Local fallback'}
                             </p>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="p-4">
                             <div className="flex min-w-28 items-center gap-3">
                               <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
                                 <div
@@ -222,10 +222,10 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               </span>
                             </div>
                           </td>
-                          <td className="max-w-xs px-4 py-4 text-xs leading-5 text-[hsl(var(--on-surface-variant))]">
+                          <td className="max-w-xs p-4 text-xs leading-5 text-[hsl(var(--on-surface-variant))]">
                             {transaction.aiReason ?? 'No reason returned.'}
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="p-4">
                             <span
                               className={cn(
                                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
@@ -254,7 +254,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                 : transaction.status}
                             </span>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="p-4">
                             <button
                               type="button"
                               className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"

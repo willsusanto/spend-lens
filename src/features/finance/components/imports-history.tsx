@@ -75,18 +75,18 @@ export const ImportsHistory = () => {
                     key={item.id}
                     className="hover:bg-[hsl(var(--surface-low))]"
                   >
-                    <td className="px-4 py-4 font-medium">{item.fileName}</td>
-                    <td className="px-4 py-4 text-[hsl(var(--on-surface-variant))]">
+                    <td className="p-4 font-medium">{item.fileName}</td>
+                    <td className="p-4 text-[hsl(var(--on-surface-variant))]">
                       {item.date}
                     </td>
-                    <td className="px-4 py-4">{item.rows}</td>
-                    <td className="px-4 py-4">
+                    <td className="p-4">{item.rows}</td>
+                    <td className="p-4">
                       <span className="inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-highest))] px-2 py-1 text-xs font-medium">
                         <span className="size-2 rounded-full bg-primary" />
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="p-4">
                       <Link
                         href={`/imports/${item.id}/review`}
                         className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
