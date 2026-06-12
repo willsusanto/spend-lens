@@ -50,9 +50,9 @@ module.exports = {
               // disables cross-feature imports:
               // eg. src/features/discussions should not import from src/features/comments, etc.
               {
-                target: './src/features/auth',
+                target: './src/features/finance',
                 from: './src/features',
-                except: ['./auth'],
+                except: ['./finance'],
               },
               {
                 target: './src/features/comments',
