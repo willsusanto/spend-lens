@@ -145,7 +145,7 @@ export const Table = <Entry extends TableEntry>({
 }: TableProps<Entry>) => {
   if (!data?.length) {
     return (
-      <div className="flex h-80 flex-col items-center justify-center bg-white text-gray-500">
+      <div className="flex h-80 flex-col items-center justify-center bg-[hsl(var(--surface-lowest))] text-[hsl(var(--on-surface-variant))]">
         <ArchiveX className="size-16" />
         <h4>No Entries Found</h4>
       </div>

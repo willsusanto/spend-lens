@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 
+import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { cn } from '@/utils/cn';
 
 const navigation = [
@@ -77,26 +78,32 @@ export const AppShell = ({
           })}
         </nav>
 
-        <button
-          type="button"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          <Plus className="size-5" aria-hidden="true" />
-          Add Transaction
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <Plus className="size-5" aria-hidden="true" />
+            Add Transaction
+          </button>
+          <ThemeToggle />
+        </div>
       </aside>
 
       <div className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-4 md:hidden">
         <Link href="/" className="text-2xl font-bold leading-8">
           LedgerLocal
         </Link>
-        <button
-          type="button"
-          className="grid min-h-10 min-w-10 place-items-center rounded-full hover:bg-[hsl(var(--surface-low))]"
-        >
-          <Menu className="size-6" aria-hidden="true" />
-          <span className="sr-only">Open menu</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            type="button"
+            className="grid min-h-10 min-w-10 place-items-center rounded-full hover:bg-[hsl(var(--surface-low))]"
+          >
+            <Menu className="size-6" aria-hidden="true" />
+            <span className="sr-only">Open menu</span>
+          </button>
+        </div>
       </div>
 
       <main

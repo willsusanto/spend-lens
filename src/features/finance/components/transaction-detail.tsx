@@ -152,7 +152,7 @@ export const TransactionDetail = ({
                   transaction.status === 'Approved'
                     ? 'bg-primary text-primary-foreground'
                     : needsReview
-                      ? 'bg-amber-100 text-amber-900'
+                      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
                       : 'bg-[hsl(var(--surface-high))]',
                 )}
               >

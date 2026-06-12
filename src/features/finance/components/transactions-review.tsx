@@ -373,7 +373,7 @@ export const TransactionsReview = () => {
                         className={cn(
                           'transition-colors hover:bg-[hsl(var(--surface-low))]',
                           needsReview &&
-                            'border-l-4 border-l-amber-500 bg-amber-50/70',
+                            'border-l-4 border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/25',
                         )}
                       >
                         <td className="p-4">
@@ -411,7 +411,7 @@ export const TransactionsReview = () => {
                               className={cn(
                                 'min-h-9 w-40 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
                                 needsReview &&
-                                  'border-amber-500 bg-white text-amber-950',
+                                  'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
                               )}
                               value={transaction.category}
                               onChange={(event) =>
