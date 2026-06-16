@@ -13,6 +13,7 @@ import {
 
 import { parseTransactionsCsv } from './csv';
 import {
+  FinanceStatus,
   FinanceTransaction,
   ImportBatch,
   seedImports,
@@ -25,8 +26,8 @@ const categorizationChunkSize = 1;
 
 type CategorizeResponse = {
   transactions: FinanceTransaction[];
-  status: string;
-  source: 'ollama' | 'heuristic';
+  status: FinanceStatus;
+  source: 'ollama' | 'manual-review';
   model?: string;
   error?: string;
 };
@@ -36,18 +37,24 @@ type ImportCsvResult = {
   transactions: FinanceTransaction[];
 };
 
+export type FinanceSyncState = 'idle' | 'pending' | 'saved';
+
+export type FinanceSyncStatus = {
+  lastSavedAt: Date | null;
+  state: FinanceSyncState;
+};
+
 export type ManualTransactionInput = {
   date: string;
-  merchant: string;
+  description: string;
   amount: number;
   category: string;
-  description?: string;
 };
 
 export type ActiveImport = {
   activeImportId: string | null;
   fileName: string | null;
-  finalBatchStatus: string | null;
+  finalBatchStatus: FinanceStatus | null;
   isComplete: boolean;
   isProcessing: boolean;
   message: string | null;
@@ -62,6 +69,9 @@ type FinanceDataContextValue = {
   approveTransaction: (id: string) => void;
   approveTransactions: (ids: string[]) => void;
   confirmImport: (importId: string) => void;
+  deleteTransactions: (ids: string[]) => void;
+  draftStagedTransactionCategories: Record<string, string>;
+  draftTransactionCategories: Record<string, string>;
   hydrated: boolean;
   importCsv: (file: File) => Promise<ImportCsvResult | null>;
   imports: ImportBatch[];
@@ -75,7 +85,11 @@ type FinanceDataContextValue = {
     needsReview: number;
     spending: number;
   };
+  stagedTransactions: FinanceTransaction[];
+  stagedImportSyncStatuses: Record<string, FinanceSyncStatus>;
   transactions: FinanceTransaction[];
+  transactionsSyncStatus: FinanceSyncStatus;
+  updateStagedTransactionCategory: (id: string, category: string) => void;
   updateTransactionCategory: (id: string, category: string) => void;
   updateTransactionsCategory: (ids: string[], category: string) => void;
 };
@@ -90,6 +104,11 @@ const idleActiveImport: ActiveImport = {
   processedRows: 0,
   processedTransactions: [],
   totalRows: 0,
+};
+
+const idleSyncStatus: FinanceSyncStatus = {
+  lastSavedAt: null,
+  state: 'idle',
 };
 
 const FinanceDataContext = createContext<FinanceDataContextValue | null>(null);
@@ -108,6 +127,141 @@ const chunkTransactions = (transactions: FinanceTransaction[]) => {
   return chunks;
 };
 
+const isTransactionCategorized = (transaction: FinanceTransaction) =>
+  transaction.category !== 'Uncategorized' &&
+  transaction.status !== 'Review' &&
+  transaction.confidence >= 70;
+
+const getImportBatchStatus = (
+  transactions: FinanceTransaction[],
+): FinanceStatus =>
+  transactions.length > 0 && transactions.every(isTransactionCategorized)
+    ? 'Pending'
+    : 'Review';
+
+const getImportIdTimestamp = (importId: string) => {
+  const timestamp = Number(importId.replace(/^import-/, ''));
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const getStagedTransactionsByImportId = (
+  stagedTransactions: FinanceTransaction[],
+) => {
+  const transactionsByImportId = new Map<string, FinanceTransaction[]>();
+
+  stagedTransactions.forEach((transaction) => {
+    if (!transaction.importId) {
+      return;
+    }
+
+    transactionsByImportId.set(transaction.importId, [
+      ...(transactionsByImportId.get(transaction.importId) ?? []),
+      transaction,
+    ]);
+  });
+
+  return transactionsByImportId;
+};
+
+const getImportDateFromId = (importId: string) => {
+  const timestamp = getImportIdTimestamp(importId);
+
+  if (timestamp === 0) {
+    return 'Restored import';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
+};
+
+const ensureImportsForStagedTransactions = (
+  imports: ImportBatch[],
+  stagedTransactions: FinanceTransaction[],
+) => {
+  const existingImportIds = new Set(imports.map((item) => item.id));
+  const transactionsByImportId =
+    getStagedTransactionsByImportId(stagedTransactions);
+  const restoredImports = Array.from(transactionsByImportId.entries())
+    .filter(([importId]) => !existingImportIds.has(importId))
+    .map(([importId, transactions]) => ({
+      id: importId,
+      fileName: transactions[0]?.sourceFile ?? 'Restored CSV import',
+      date: getImportDateFromId(importId),
+      rows: transactions.length,
+      status: getImportBatchStatus(transactions),
+    }));
+
+  return [...restoredImports, ...imports];
+};
+
+const restoreActiveImportFromStaged = (
+  imports: ImportBatch[],
+  stagedTransactions: FinanceTransaction[],
+): ActiveImport => {
+  const transactionsByImportId =
+    getStagedTransactionsByImportId(stagedTransactions);
+
+  const restorableImport =
+    imports.find(
+      (item) =>
+        item.status !== 'Approved' && transactionsByImportId.has(item.id),
+    ) ??
+    Array.from(transactionsByImportId.keys())
+      .toSorted(
+        (left, right) => getImportIdTimestamp(right) - getImportIdTimestamp(left),
+      )
+      .map((importId) => imports.find((item) => item.id === importId))
+      .find((item): item is ImportBatch => Boolean(item));
+
+  if (!restorableImport) {
+    return idleActiveImport;
+  }
+
+  const processedTransactions =
+    transactionsByImportId.get(restorableImport.id) ?? [];
+
+  if (processedTransactions.length === 0) {
+    return idleActiveImport;
+  }
+
+  return {
+    activeImportId: restorableImport.id,
+    fileName:
+      restorableImport.fileName ??
+      processedTransactions[0]?.sourceFile ??
+      'Restored CSV import',
+    finalBatchStatus: restorableImport.status,
+    isComplete: true,
+    isProcessing: false,
+    message: `Restored ${processedTransactions.length} staged rows from ${restorableImport.fileName}.`,
+    processedRows: processedTransactions.length,
+    processedTransactions,
+    totalRows: restorableImport.rows || processedTransactions.length,
+  };
+};
+
+const applyManualCategory = (
+  transaction: FinanceTransaction,
+  category: string,
+  reason: string,
+): FinanceTransaction => {
+  const needsReview = category === 'Uncategorized';
+
+  return {
+    ...transaction,
+    category,
+    confidence: needsReview ? Math.min(transaction.confidence, 31) : 100,
+    status: needsReview ? 'Review' : 'Pending',
+    categorizationSource: 'manual',
+    aiReason: category === transaction.category ? transaction.aiReason : reason,
+  };
+};
+
 export const FinanceDataProvider = ({
   children,
   store = localStorageFinanceStore,
@@ -117,12 +271,30 @@ export const FinanceDataProvider = ({
 }) => {
   const [transactions, setTransactions] =
     useState<FinanceTransaction[]>(seedTransactions);
+  const [stagedTransactions, setStagedTransactions] = useState<
+    FinanceTransaction[]
+  >([]);
   const [imports, setImports] = useState<ImportBatch[]>(seedImports);
   const [message, setMessage] = useState<string | null>(null);
   const [activeImport, setActiveImport] =
     useState<ActiveImport>(idleActiveImport);
+  const [draftTransactionCategories, setDraftTransactionCategories] = useState<
+    Record<string, string>
+  >({});
+  const [
+    draftStagedTransactionCategories,
+    setDraftStagedTransactionCategories,
+  ] = useState<Record<string, string>>({});
+  const [transactionsSyncStatus, setTransactionsSyncStatus] =
+    useState<FinanceSyncStatus>(idleSyncStatus);
+  const [stagedImportSyncStatuses, setStagedImportSyncStatuses] = useState<
+    Record<string, FinanceSyncStatus>
+  >({});
   const [hydrated, setHydrated] = useState(false);
   const isProcessingRef = useRef(false);
+  const hasUnsavedDraftChanges =
+    Object.keys(draftTransactionCategories).length > 0 ||
+    Object.keys(draftStagedTransactionCategories).length > 0;
 
   useEffect(() => {
     let isActive = true;
@@ -135,8 +307,20 @@ export const FinanceDataProvider = ({
           return;
         }
 
+        const restoredImports = ensureImportsForStagedTransactions(
+          snapshot.imports,
+          snapshot.stagedTransactions,
+        );
+
         setTransactions(snapshot.transactions);
-        setImports(snapshot.imports);
+        setStagedTransactions(snapshot.stagedTransactions);
+        setImports(restoredImports);
+        setActiveImport(
+          restoreActiveImportFromStaged(
+            restoredImports,
+            snapshot.stagedTransactions,
+          ),
+        );
       } catch (error) {
         if (!isActive) {
           return;
@@ -178,12 +362,294 @@ export const FinanceDataProvider = ({
       return;
     }
 
+    void store
+      .saveStagedTransactions(stagedTransactions)
+      .catch((error: unknown) => {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Could not save staged transactions.',
+        );
+      });
+  }, [hydrated, stagedTransactions, store]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
     void store.saveImports(imports).catch((error: unknown) => {
       setMessage(
         error instanceof Error ? error.message : 'Could not save imports.',
       );
     });
   }, [hydrated, imports, store]);
+
+  useEffect(() => {
+    if (!activeImport.isProcessing && !hasUnsavedDraftChanges) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [activeImport.isProcessing, hasUnsavedDraftChanges]);
+
+  useEffect(() => {
+    const entries = Object.entries(draftTransactionCategories);
+
+    if (entries.length === 0) {
+      setTransactionsSyncStatus((current) =>
+        current.state === 'pending'
+          ? {
+              lastSavedAt: current.lastSavedAt,
+              state: 'idle',
+            }
+          : current,
+      );
+
+      return;
+    }
+
+    setTransactionsSyncStatus((current) => ({
+      lastSavedAt: current.lastSavedAt,
+      state: 'pending',
+    }));
+
+    const timeout = window.setTimeout(() => {
+      const entriesById = new Map(entries);
+
+      setTransactions((current) =>
+        current.map((transaction) => {
+          const category = entriesById.get(transaction.id);
+
+          return category
+            ? applyManualCategory(
+                transaction,
+                category,
+                'Category changed during transaction review.',
+              )
+            : transaction;
+        }),
+      );
+      setDraftTransactionCategories((current) => {
+        const next = { ...current };
+
+        entries.forEach(([id, category]) => {
+          if (next[id] === category) {
+            delete next[id];
+          }
+        });
+
+        return next;
+      });
+      setTransactionsSyncStatus({
+        lastSavedAt: new Date(),
+        state: 'saved',
+      });
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [draftTransactionCategories]);
+
+  useEffect(() => {
+    if (transactionsSyncStatus.state !== 'saved') {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () =>
+        setTransactionsSyncStatus((current) => ({
+          lastSavedAt: current.lastSavedAt,
+          state: 'idle',
+        })),
+      1500,
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [transactionsSyncStatus.state]);
+
+  useEffect(() => {
+    const entries = Object.entries(draftStagedTransactionCategories);
+
+    if (entries.length === 0) {
+      setStagedImportSyncStatuses((current) => {
+        const next = { ...current };
+        let changed = false;
+
+        Object.entries(next).forEach(([id, status]) => {
+          if (status.state === 'pending') {
+            next[id] = {
+              lastSavedAt: status.lastSavedAt,
+              state: 'idle',
+            };
+            changed = true;
+          }
+        });
+
+        return changed ? next : current;
+      });
+
+      return;
+    }
+
+    const affectedImportIds = new Set<string>();
+
+    entries.forEach(([id]) => {
+      const transaction =
+        stagedTransactions.find((item) => item.id === id) ??
+        activeImport.processedTransactions.find((item) => item.id === id);
+
+      if (transaction?.importId) {
+        affectedImportIds.add(transaction.importId);
+      }
+    });
+
+    if (affectedImportIds.size === 0 && activeImport.activeImportId) {
+      affectedImportIds.add(activeImport.activeImportId);
+    }
+
+    setStagedImportSyncStatuses((current) => {
+      const next = { ...current };
+
+      affectedImportIds.forEach((id) => {
+        next[id] = {
+          lastSavedAt: next[id]?.lastSavedAt ?? null,
+          state: 'pending',
+        };
+      });
+
+      return next;
+    });
+
+    const timeout = window.setTimeout(() => {
+      const entriesById = new Map(entries);
+      const now = new Date();
+
+      setStagedTransactions((current) => {
+        const updated = current.map((transaction) => {
+          const category = entriesById.get(transaction.id);
+
+          return category
+            ? applyManualCategory(
+                transaction,
+                category,
+                'Category changed during import staging.',
+              )
+            : transaction;
+        });
+
+        setImports((currentImports) =>
+          currentImports.map((item) =>
+            affectedImportIds.has(item.id)
+              ? {
+                  ...item,
+                  status: getImportBatchStatus(
+                    updated.filter(
+                      (transaction) => transaction.importId === item.id,
+                    ),
+                  ),
+                }
+              : item,
+          ),
+        );
+
+        return updated;
+      });
+      setActiveImport((current) => ({
+        ...current,
+        processedTransactions: current.processedTransactions.map(
+          (transaction) => {
+            const category = entriesById.get(transaction.id);
+
+            return category
+              ? applyManualCategory(
+                  transaction,
+                  category,
+                  'Category changed during import staging.',
+                )
+              : transaction;
+          },
+        ),
+      }));
+      setDraftStagedTransactionCategories((current) => {
+        const next = { ...current };
+
+        entries.forEach(([id, category]) => {
+          if (next[id] === category) {
+            delete next[id];
+          }
+        });
+
+        return next;
+      });
+      setStagedImportSyncStatuses((current) => {
+        const next = { ...current };
+
+        affectedImportIds.forEach((id) => {
+          next[id] = {
+            lastSavedAt: now,
+            state: 'saved',
+          };
+        });
+
+        return next;
+      });
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [
+    activeImport.activeImportId,
+    activeImport.processedTransactions,
+    draftStagedTransactionCategories,
+    stagedTransactions,
+  ]);
+
+  useEffect(() => {
+    const savedImportIds = Object.entries(stagedImportSyncStatuses)
+      .filter(([, status]) => status.state === 'saved')
+      .map(([id]) => id);
+
+    if (savedImportIds.length === 0) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setStagedImportSyncStatuses((current) => {
+        const next = { ...current };
+
+        savedImportIds.forEach((id) => {
+          const status = next[id];
+
+          if (status?.state === 'saved') {
+            next[id] = {
+              lastSavedAt: status.lastSavedAt,
+              state: 'idle',
+            };
+          }
+        });
+
+        return next;
+      });
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [stagedImportSyncStatuses]);
 
   const importCsv = useCallback(async (file: File) => {
     if (isProcessingRef.current) {
@@ -222,7 +688,7 @@ export const FinanceDataProvider = ({
 
       const recordProcessedTransaction = (transaction: FinanceTransaction) => {
         processedTransactionsById.set(transaction.id, transaction);
-        setTransactions((current) => [transaction, ...current]);
+        setStagedTransactions((current) => [transaction, ...current]);
         setActiveImport((current) => ({
           ...current,
           processedRows: current.processedRows + 1,
@@ -282,11 +748,12 @@ export const FinanceDataProvider = ({
           const fallbackResult: CategorizeResponse = {
             transactions: transactionsChunk.map((transaction) => ({
               ...transaction,
-              aiReason: `Ollama categorization could not run. ${detail}`,
-              categorizationSource: 'heuristic',
+              confidence: Math.min(transaction.confidence, 31),
+              status: 'Review',
+              aiReason: `AI categorization could not run. ${detail}`,
             })),
-            source: 'heuristic',
-            status: 'Heuristic fallback',
+            source: 'manual-review',
+            status: 'Review',
             error: detail,
           };
 
@@ -301,17 +768,7 @@ export const FinanceDataProvider = ({
         (transaction) =>
           processedTransactionsById.get(transaction.id) ?? transaction,
       );
-      const ollamaChunkCount = categorizedChunks.filter(
-        (chunk) => chunk.source === 'ollama',
-      ).length;
-      const allOllamaChunksSucceeded =
-        chunks.length > 0 && ollamaChunkCount === chunks.length;
-      const categorizedStatus =
-        allOllamaChunksSucceeded && parsed.transactions.length > 0
-          ? 'AI categorized'
-          : ollamaChunkCount > 0
-            ? 'Partially categorized'
-            : 'Heuristic fallback';
+      const categorizedStatus = getImportBatchStatus(mergedTransactions);
 
       const batch = {
         ...parsed.batch,
@@ -344,7 +801,7 @@ export const FinanceDataProvider = ({
       setMessage(failedMessage);
       setActiveImport((current) => ({
         ...current,
-        finalBatchStatus: 'Failed',
+        finalBatchStatus: 'Review',
         isComplete: false,
         isProcessing: false,
         message: failedMessage,
@@ -376,18 +833,35 @@ export const FinanceDataProvider = ({
     );
   }, []);
 
+  const deleteTransactions = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+
+    setTransactions((current) =>
+      current.filter((transaction) => !idSet.has(transaction.id)),
+    );
+    setDraftTransactionCategories((current) => {
+      const next = { ...current };
+
+      ids.forEach((id) => {
+        delete next[id];
+      });
+
+      return next;
+    });
+    setMessage(`Deleted ${ids.length} transaction${ids.length === 1 ? '' : 's'}.`);
+  }, []);
+
   const addTransaction = useCallback((input: ManualTransactionInput) => {
     const now = Date.now();
     const transaction: FinanceTransaction = {
       id: `manual-${now}`,
       date: input.date,
-      merchant: input.merchant,
-      description: input.description?.trim() || 'Manual entry',
+      description: input.description.trim(),
       amount: input.amount,
       category: input.category,
       confidence: 100,
       status: 'Approved',
-      categorizationSource: 'heuristic',
+      categorizationSource: 'manual',
     };
 
     setTransactions((current) => [transaction, ...current]);
@@ -396,30 +870,48 @@ export const FinanceDataProvider = ({
 
   const updateTransactionCategory = useCallback(
     (id: string, category: string) => {
-      setTransactions((current) =>
-        current.map((transaction) => {
-          if (transaction.id !== id) {
-            return transaction;
-          }
+      setDraftTransactionCategories((current) => {
+        const transaction = transactions.find((item) => item.id === id);
 
-          const needsReview = category === 'Uncategorized';
+        if (!transaction || transaction.category === category) {
+          const next = { ...current };
 
-          return {
-            ...transaction,
-            category,
-            confidence: needsReview
-              ? Math.min(transaction.confidence, 31)
-              : Math.max(transaction.confidence, 100),
-            status: needsReview ? 'Review' : 'Pending',
-            aiReason:
-              category === transaction.category
-                ? transaction.aiReason
-                : 'Category changed during import review.',
-          };
-        }),
-      );
+          delete next[id];
+
+          return next;
+        }
+
+        return {
+          ...current,
+          [id]: category,
+        };
+      });
     },
-    [],
+    [transactions],
+  );
+
+  const updateStagedTransactionCategory = useCallback(
+    (id: string, category: string) => {
+      setDraftStagedTransactionCategories((current) => {
+        const transaction =
+          stagedTransactions.find((item) => item.id === id) ??
+          activeImport.processedTransactions.find((item) => item.id === id);
+
+        if (!transaction || transaction.category === category) {
+          const next = { ...current };
+
+          delete next[id];
+
+          return next;
+        }
+
+        return {
+          ...current,
+          [id]: category,
+        };
+      });
+    },
+    [activeImport.processedTransactions, stagedTransactions],
   );
 
   const updateTransactionsCategory = useCallback(
@@ -430,19 +922,22 @@ export const FinanceDataProvider = ({
             return transaction;
           }
 
-          const needsReview = category === 'Uncategorized';
-
-          return {
-            ...transaction,
+          return applyManualCategory(
+            transaction,
             category,
-            confidence: needsReview
-              ? Math.min(transaction.confidence, 31)
-              : 100,
-            status: needsReview ? 'Review' : 'Pending',
-            aiReason: 'Category changed during bulk transaction review.',
-          };
+            'Category changed during bulk transaction review.',
+          );
         }),
       );
+      setDraftTransactionCategories((current) => {
+        const next = { ...current };
+
+        ids.forEach((id) => {
+          delete next[id];
+        });
+
+        return next;
+      });
       setMessage(`Updated ${ids.length} transaction categories locally.`);
     },
     [],
@@ -469,6 +964,9 @@ export const FinanceDataProvider = ({
                 : 100
               : transaction.confidence,
             status: needsReview ? 'Review' : transaction.status,
+            categorizationSource: categoryChanged
+              ? 'manual'
+              : transaction.categorizationSource,
             aiReason: categoryChanged
               ? 'Category changed during transaction review.'
               : transaction.aiReason,
@@ -481,29 +979,60 @@ export const FinanceDataProvider = ({
   );
 
   const confirmImport = useCallback((importId: string) => {
-    setTransactions((current) =>
-      current.map((transaction) =>
-        transaction.importId === importId
-          ? { ...transaction, status: 'Approved' }
-          : transaction,
-      ),
+    const stagedForImport = stagedTransactions.filter(
+      (transaction) => transaction.importId === importId,
     );
+    const allCategorized =
+      stagedForImport.length > 0 &&
+      stagedForImport.every(isTransactionCategorized);
+
+    if (!allCategorized) {
+      setMessage('Categorize every imported transaction before confirming.');
+
+      return;
+    }
+
+    const confirmedTransactions = stagedForImport.map((transaction) => ({
+      ...transaction,
+      status: 'Approved' as const,
+    }));
+
+    setTransactions((current) => [...confirmedTransactions, ...current]);
+    setStagedTransactions((current) =>
+      current.filter((transaction) => transaction.importId !== importId),
+    );
+    setDraftStagedTransactionCategories((current) => {
+      const next = { ...current };
+
+      stagedForImport.forEach((transaction) => {
+        delete next[transaction.id];
+      });
+
+      return next;
+    });
+    setStagedImportSyncStatuses((current) => {
+      const next = { ...current };
+
+      delete next[importId];
+
+      return next;
+    });
     setImports((current) =>
       current.map((item) =>
-        item.id === importId ? { ...item, status: 'Confirmed' } : item,
+        item.id === importId ? { ...item, status: 'Approved' } : item,
       ),
     );
     setActiveImport((current) =>
       current.activeImportId === importId
         ? {
             ...current,
-            finalBatchStatus: 'Confirmed',
+            finalBatchStatus: 'Approved',
             message: 'Import confirmed and categories saved locally.',
           }
         : current,
     );
     setMessage('Import confirmed and categories saved locally.');
-  }, []);
+  }, [stagedTransactions]);
 
   const stats = useMemo(() => {
     const spending = transactions
@@ -526,13 +1055,20 @@ export const FinanceDataProvider = ({
       approveTransaction,
       approveTransactions,
       confirmImport,
+      deleteTransactions,
+      draftStagedTransactionCategories,
+      draftTransactionCategories,
       hydrated,
       importCsv,
       imports,
       message,
       saveTransactionDetails,
       stats,
+      stagedTransactions,
+      stagedImportSyncStatuses,
       transactions,
+      transactionsSyncStatus,
+      updateStagedTransactionCategory,
       updateTransactionCategory,
       updateTransactionsCategory,
     }),
@@ -542,13 +1078,20 @@ export const FinanceDataProvider = ({
       approveTransaction,
       approveTransactions,
       confirmImport,
+      deleteTransactions,
+      draftStagedTransactionCategories,
+      draftTransactionCategories,
       hydrated,
       importCsv,
       imports,
       message,
       saveTransactionDetails,
       stats,
+      stagedTransactions,
+      stagedImportSyncStatuses,
       transactions,
+      transactionsSyncStatus,
+      updateStagedTransactionCategory,
       updateTransactionCategory,
       updateTransactionsCategory,
     ],
