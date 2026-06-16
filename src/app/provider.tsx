@@ -7,6 +7,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { MainErrorFallback } from '@/components/errors/main';
 import { Notifications } from '@/components/ui/notifications';
+import { getDefaultFinanceStore } from '@/features/finance/finance-store';
+import { FinanceDataProvider } from '@/features/finance/use-finance-data';
 import { queryConfig } from '@/lib/react-query';
 
 type AppProviderProps = {
@@ -20,13 +22,16 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         defaultOptions: queryConfig,
       }),
   );
+  const [financeStore] = React.useState(() => getDefaultFinanceStore());
 
   return (
     <ErrorBoundary FallbackComponent={MainErrorFallback}>
       <QueryClientProvider client={queryClient}>
         {process.env.DEV && <ReactQueryDevtools />}
         <Notifications />
-        {children}
+        <FinanceDataProvider store={financeStore}>
+          {children}
+        </FinanceDataProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

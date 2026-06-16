@@ -4,9 +4,9 @@ import { Check, ChevronLeft, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 
-import { AppShell } from '@/components/layouts/app-shell';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
+import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { MetricCard } from '@/features/finance/components/metric-card';
 import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
@@ -40,18 +40,18 @@ export const ImportReview = ({ importId }: { importId: string }) => {
 
   if (!hydrated) {
     return (
-      <AppShell>
+      <FinanceAppShell>
         <PageContainer>
           <Panel as="p" className="px-4 py-3 text-sm">
             Loading imported transactions...
           </Panel>
         </PageContainer>
-      </AppShell>
+      </FinanceAppShell>
     );
   }
 
   return (
-    <AppShell>
+    <FinanceAppShell>
       <PageContainer flow="grid">
         <PageHeader
           title="Review Imported Transactions"
@@ -282,6 +282,6 @@ export const ImportReview = ({ importId }: { importId: string }) => {
           </Panel>
         )}
       </PageContainer>
-    </AppShell>
+    </FinanceAppShell>
   );
 };

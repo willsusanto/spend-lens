@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { AppShell } from '@/components/layouts/app-shell';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
@@ -84,19 +84,19 @@ export const TransactionDetail = ({
 
   if (!hydrated) {
     return (
-      <AppShell>
+      <FinanceAppShell>
         <PageContainer>
           <Panel as="p" className="px-4 py-3 text-sm">
             Loading transaction...
           </Panel>
         </PageContainer>
-      </AppShell>
+      </FinanceAppShell>
     );
   }
 
   if (!transaction) {
     return (
-      <AppShell>
+      <FinanceAppShell>
         <PageContainer size="narrow" flow="grid" className="gap-4">
           <Link
             href="/transactions"
@@ -112,7 +112,7 @@ export const TransactionDetail = ({
             </p>
           </Panel>
         </PageContainer>
-      </AppShell>
+      </FinanceAppShell>
     );
   }
 
@@ -122,7 +122,7 @@ export const TransactionDetail = ({
     transaction.confidence < 70;
 
   return (
-    <AppShell>
+    <FinanceAppShell>
       <PageContainer as="form" flow="grid" onSubmit={handleSave}>
         <PageHeader
           title={transaction.merchant}
@@ -341,6 +341,6 @@ export const TransactionDetail = ({
           </aside>
         </div>
       </PageContainer>
-    </AppShell>
+    </FinanceAppShell>
   );
 };

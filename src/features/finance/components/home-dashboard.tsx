@@ -1,102 +1,57 @@
 'use client';
 
-import { AlertCircle, FileText, Upload } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { DragEvent, useMemo, useRef, useState } from 'react';
-
-import { AppShell } from '@/components/layouts/app-shell';
-import { PageContainer, PageHeader } from '@/components/layouts/page';
-import { Panel, PanelHeader } from '@/components/ui/panel';
-import { MetricCard } from '@/features/finance/components/metric-card';
 import {
-  formatCurrency,
-  spendingByCategory as fallbackSpending,
-} from '@/features/finance/data';
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Loader2,
+  Upload,
+} from 'lucide-react';
+import { DragEvent, useEffect, useRef, useState } from 'react';
+
+import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Panel } from '@/components/ui/panel';
+import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import { formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
-const buildCategorySpending = (
-  transactions: ReturnType<typeof useFinanceData>['transactions'],
-) => {
-  const totals = transactions
-    .filter((transaction) => transaction.amount < 0)
-    .reduce<Record<string, number>>((acc, transaction) => {
-      acc[transaction.category] =
-        (acc[transaction.category] ?? 0) + Math.abs(transaction.amount);
-      return acc;
-    }, {});
-
-  const entries = Object.entries(totals)
-    .sort(([, left], [, right]) => right - left)
-    .slice(0, 5);
-
-  if (!entries.length) {
-    return fallbackSpending;
-  }
-
-  const max = Math.max(...entries.map(([, total]) => total));
-
-  return entries.map(([name, total], index) => ({
-    name,
-    amount: formatCurrency(total),
-    percent: Math.max(8, Math.round((total / max) * 100)),
-    tone:
-      [
-        'bg-primary',
-        'bg-[hsl(var(--surface-tint))]',
-        'bg-[hsl(var(--outline))]',
-        'bg-[hsl(var(--outline-variant))]',
-        'bg-secondary-foreground',
-      ][index] ?? 'bg-primary',
-  }));
-};
+const processingPageSize = 5;
 
 export const HomeDashboard = () => {
-  const { imports, importCsv, message, stats, transactions } = useFinanceData();
-  const router = useRouter();
+  const { activeImport, confirmImport, importCsv, imports, message } =
+    useFinanceData();
   const [isDragging, setIsDragging] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  const [page, setPage] = useState(1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const categorySpending = useMemo(
-    () => buildCategorySpending(transactions),
-    [transactions],
+  const latestImport = imports.find(
+    (item) => item.id === activeImport.activeImportId,
+  );
+  const isImporting = activeImport.isProcessing;
+  const processedRows = activeImport.processedTransactions;
+  const processingMessage = activeImport.message ?? message;
+  const pageCount = Math.max(
+    1,
+    Math.ceil(processedRows.length / processingPageSize),
+  );
+  const visibleRows = processedRows.slice(
+    (page - 1) * processingPageSize,
+    page * processingPageSize,
   );
 
-  const metrics = [
-    {
-      label: 'Total Spending',
-      value: formatCurrency(stats.spending),
-      helper: 'Imported transactions',
-    },
-    {
-      label: 'Total Income',
-      value: formatCurrency(stats.income),
-      helper: 'Deposits and credits',
-    },
-    {
-      label: 'Needs Review',
-      value: String(stats.needsReview),
-      unit: 'Items',
-      helper: 'Low-confidence imports',
-    },
-  ];
+  useEffect(() => {
+    setPage(1);
+  }, [processedRows.length]);
 
   const handleFiles = async (files: FileList | null) => {
     const file = files?.[0];
 
-    if (!file) {
+    if (!file || activeImport.isProcessing) {
       return;
     }
 
-    setIsImporting(true);
-
-    try {
-      const result = await importCsv(file);
-      router.push(`/imports/${result.batch.id}/review`);
-    } finally {
-      setIsImporting(false);
-    }
+    await importCsv(file);
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -109,183 +64,209 @@ export const HomeDashboard = () => {
     await handleFiles(event.dataTransfer.files);
   };
 
+  const saveLatestImport = () => {
+    if (!activeImport.activeImportId) {
+      return;
+    }
+
+    confirmImport(activeImport.activeImportId);
+  };
+
   return (
-    <AppShell>
-      <PageContainer flow="grid" className="gap-8">
+    <FinanceAppShell>
+      <PageContainer size="narrow" flow="space" className="pt-6 sm:pt-10">
         <PageHeader
-          title="Weekly Summary"
-          description="Oct 16 - Oct 22, 2023"
-          actions={
-            <Link
-              href="/transactions"
-              className="inline-flex min-h-10 items-center justify-center self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 md:self-auto"
-            >
-              Go to Transactions
-            </Link>
-          }
+          title="Home"
+          description="Import a local CSV, categorize each row, then confirm the saved ledger entries."
         />
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:col-span-12">
-            {metrics.map((metric) => (
-              <MetricCard
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                unit={metric.unit}
-                helper={metric.helper}
-                adornment={
-                  metric.unit ? (
-                    <AlertCircle
-                      className="absolute right-4 top-4 size-9 text-[hsl(var(--outline-variant))]"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                  ) : null
-                }
-              />
-            ))}
-          </section>
+        <label
+          className={cn(
+            'group flex min-h-72 cursor-pointer flex-col items-center justify-center rounded border-2 border-dashed border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-8 text-center transition-colors hover:bg-[hsl(var(--surface-low))]',
+            isDragging &&
+              'border-[hsl(var(--foreground))] bg-[hsl(var(--surface-low))]',
+            isImporting && 'cursor-wait opacity-80',
+          )}
+          onDragEnter={() => setIsDragging(true)}
+          onDragLeave={() => setIsDragging(false)}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={inputRef}
+            className="sr-only"
+            type="file"
+            accept=".csv,text/csv"
+            disabled={isImporting}
+            onChange={(event) => handleFiles(event.target.files)}
+          />
+          <span className="mb-5 grid size-16 place-items-center rounded bg-[hsl(var(--surface-high))]">
+            <Upload className="size-8" aria-hidden="true" />
+          </span>
+          <span className="text-2xl font-bold leading-8">Upload CSV</span>
+          <span className="mt-2 max-w-md text-sm leading-6 text-[hsl(var(--on-surface-variant))]">
+            Drag a bank export here or click to browse. Supported format: .csv.
+          </span>
+        </label>
 
-          <section className="flex flex-col gap-4 lg:col-span-8">
-            <label
-              className={cn(
-                'group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] p-8 text-center transition-colors hover:bg-[hsl(var(--surface-low))]',
-                isDragging && 'border-primary bg-[hsl(var(--surface-low))]',
-              )}
-              onDragEnter={() => setIsDragging(true)}
-              onDragLeave={() => setIsDragging(false)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={inputRef}
-                className="sr-only"
-                type="file"
-                accept=".csv,text/csv"
-                disabled={isImporting}
-                onChange={(event) => handleFiles(event.target.files)}
+        <Panel className="p-5">
+          <h2 className="text-xl font-semibold">Processing</h2>
+          <div className="mt-4 flex items-start gap-3 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] p-4">
+            {isImporting ? (
+              <Loader2
+                className="mt-0.5 size-5 animate-spin"
+                aria-hidden="true"
               />
-              <span className="mb-4 grid size-[4.5rem] place-items-center rounded-xl bg-[hsl(var(--surface-high))] transition-transform duration-300 group-hover:scale-105">
-                <Upload className="size-8" aria-hidden="true" />
-              </span>
-              <span className="text-xl font-semibold leading-7">
-                {isImporting ? 'Categorizing with Ollama' : 'Upload CSV'}
-              </span>
-              <span className="mt-2 max-w-md text-pretty text-sm leading-5 text-[hsl(var(--on-surface-variant))]">
+            ) : (
+              <FileText className="mt-0.5 size-5" aria-hidden="true" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
                 {isImporting
-                  ? 'Keep this page open. You will be redirected to review when categorization finishes or times out.'
-                  : 'Drag and drop your bank export files here, or click to browse. Supported format: .csv'}
-              </span>
-              {message ? (
-                <span className="mt-4 rounded bg-[hsl(var(--surface-highest))] px-3 py-1 text-xs font-medium">
-                  {message}
-                </span>
-              ) : null}
-            </label>
+                  ? 'Processing CSV with Ollama'
+                  : activeImport.isComplete && activeImport.fileName
+                    ? `${activeImport.fileName} processed`
+                    : 'Waiting for a CSV upload'}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-[hsl(var(--on-surface-variant))]">
+                {processingMessage ??
+                  'The processing result will appear here after you upload a file.'}
+              </p>
+            </div>
+          </div>
 
-            <Panel as="article">
-              <PanelHeader className="flex items-center justify-between bg-[hsl(var(--surface-low))] px-4 py-3">
-                <h2 className="text-sm font-semibold">Recent Imports</h2>
-                <Link
-                  href="/imports"
-                  className="text-xs text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
-                >
-                  View All
-                </Link>
-              </PanelHeader>
-              <div className="min-w-0">
-                <table className="w-full table-fixed border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))]">
-                      <th className="w-[42%] px-4 py-3 text-left text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                        File Name
-                      </th>
-                      <th className="w-[28%] px-4 py-3 text-left text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                        Date
-                      </th>
-                      <th className="w-[12%] px-4 py-3 text-left text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                        Rows
-                      </th>
-                      <th className="w-[18%] px-4 py-3 text-left text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm">
-                    {imports.slice(0, 3).map((item, index) => (
+          <div className="mt-5 overflow-clip rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[44rem] border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Processed transactions from the current CSV upload
+                </caption>
+                <thead className="bg-[hsl(var(--surface-low))]">
+                  <tr className="border-b border-[hsl(var(--outline-variant))]">
+                    {['Date', 'Merchant', 'Category', 'Amount', 'Status'].map(
+                      (header) => (
+                        <th
+                          key={header}
+                          scope="col"
+                          className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
+                        >
+                          {header}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody aria-live="polite" aria-relevant="additions">
+                  {visibleRows.length > 0 ? (
+                    visibleRows.map((transaction) => (
                       <tr
-                        key={item.id}
-                        className={cn(
-                          'transition-colors hover:bg-[hsl(var(--surface-low))]',
-                          index < Math.min(imports.length, 3) - 1 &&
-                            'border-b border-[hsl(var(--outline-variant))]',
-                        )}
+                        key={transaction.id}
+                        className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
                       >
-                        <td className="p-4">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <FileText
-                              className="size-4 shrink-0 text-[hsl(var(--outline))]"
-                              aria-hidden="true"
-                            />
-                            <span className="truncate">{item.fileName}</span>
-                          </span>
+                        <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
+                          {transaction.date}
                         </td>
-                        <td className="truncate p-4 text-[hsl(var(--on-surface-variant))]">
-                          {item.date}
+                        <th scope="row" className="px-4 py-3 font-medium">
+                          {transaction.merchant}
+                        </th>
+                        <td className="px-4 py-3 text-[hsl(var(--on-surface-variant))]">
+                          {transaction.category}
                         </td>
-                        <td className="p-4">{item.rows}</td>
-                        <td className="p-4">
-                          <span className="inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-highest))] px-2 py-1 text-xs font-medium">
-                            <span className="size-2 rounded-full bg-primary" />
-                            {item.status}
+                        <td
+                          className={cn(
+                            'whitespace-nowrap px-4 py-3 text-right font-mono font-semibold',
+                            transaction.amount > 0 &&
+                              'text-emerald-700 dark:text-emerald-300',
+                          )}
+                        >
+                          {formatSignedCurrency(transaction.amount)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full bg-[hsl(var(--surface-high))] px-2.5 py-1 text-xs font-medium">
+                            {transaction.categorizationSource === 'ollama'
+                              ? 'AI processed'
+                              : 'Processed'}
                           </span>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Panel>
-          </section>
-
-          <Panel as="aside" className="p-4 lg:col-span-4">
-            <h2 className="text-sm font-semibold">Spending by Category</h2>
-            <div
-              className="flex min-h-80 flex-col justify-center gap-5 lg:min-h-[22rem]"
-              aria-hidden="true"
-            >
-              {categorySpending.map((category) => (
-                <div key={category.name} className="space-y-2">
-                  <div className="flex items-center justify-between gap-4 text-xs">
-                    <span className="font-medium">{category.name}</span>
-                    <span className="text-[hsl(var(--on-surface-variant))]">
-                      {category.amount}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[hsl(var(--surface-highest))]">
-                    <div
-                      className={cn('h-full rounded-full', category.tone)}
-                      style={{ inlineSize: `${category.percent}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-10 text-center text-sm text-[hsl(var(--on-surface-variant))]"
+                      >
+                        No processed rows yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <table className="sr-only">
-              <caption>Spending by category</caption>
-              <tbody>
-                {categorySpending.map((category) => (
-                  <tr key={category.name}>
-                    <th scope="row">{category.name}</th>
-                    <td>{category.amount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Panel>
-        </div>
+            <footer className="flex flex-col gap-3 border-t border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Showing {visibleRows.length} of {processedRows.length} processed
+                rows
+              </span>
+              <div className="flex items-center gap-2">
+                <span>
+                  Page {page} of {pageCount}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))] disabled:opacity-40"
+                    disabled={page === 1}
+                    onClick={() => setPage((current) => current - 1)}
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                    <span className="sr-only">Previous processing page</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))] disabled:opacity-40"
+                    disabled={page === pageCount}
+                    onClick={() => setPage((current) => current + 1)}
+                  >
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                    <span className="sr-only">Next processing page</span>
+                  </button>
+                </div>
+              </div>
+            </footer>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p aria-live="polite" className="text-sm font-medium">
+              {activeImport.finalBatchStatus === 'Confirmed' ? (
+                <span className="inline-flex items-center gap-2">
+                  <Check className="size-4" aria-hidden="true" />
+                  Saved
+                </span>
+              ) : latestImport ? (
+                `${latestImport.rows} rows ready to save`
+              ) : processedRows.length > 0 ? (
+                `${processedRows.length} rows processed so far`
+              ) : (
+                'No processed import yet'
+              )}
+            </p>
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              disabled={
+                !activeImport.activeImportId ||
+                isImporting ||
+                activeImport.finalBatchStatus === 'Confirmed'
+              }
+              onClick={saveLatestImport}
+            >
+              <Check className="size-4" aria-hidden="true" />
+              Confirm Saved
+            </button>
+          </div>
+        </Panel>
       </PageContainer>
-    </AppShell>
+    </FinanceAppShell>
   );
 };

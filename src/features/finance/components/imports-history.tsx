@@ -5,25 +5,28 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
 
-import { AppShell } from '@/components/layouts/app-shell';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
+import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 
 export const ImportsHistory = () => {
-  const { importCsv, imports, message } = useFinanceData();
+  const { activeImport, importCsv, imports, message } = useFinanceData();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = async (files: FileList | null) => {
     const file = files?.[0];
 
-    if (!file) {
+    if (!file || activeImport.isProcessing) {
       return;
     }
 
     const result = await importCsv(file);
-    router.push(`/imports/${result.batch.id}/review`);
+
+    if (result) {
+      router.push(`/imports/${result.batch.id}/review`);
+    }
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -31,7 +34,7 @@ export const ImportsHistory = () => {
   };
 
   return (
-    <AppShell>
+    <FinanceAppShell>
       <PageContainer flow="grid" className="gap-8">
         <PageHeader
           title="Imports"
@@ -45,6 +48,7 @@ export const ImportsHistory = () => {
                 className="sr-only"
                 type="file"
                 accept=".csv,text/csv"
+                disabled={activeImport.isProcessing}
                 onChange={(event) => handleFiles(event.target.files)}
               />
             </label>
@@ -101,6 +105,6 @@ export const ImportsHistory = () => {
           </div>
         </Panel>
       </PageContainer>
-    </AppShell>
+    </FinanceAppShell>
   );
 };
