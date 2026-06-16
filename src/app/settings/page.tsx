@@ -43,7 +43,7 @@ const SettingsPage = () => {
 
   return (
     <FinanceAppShell>
-      <PageContainer size="narrow" flow="space" className="pt-6 sm:pt-10">
+      <PageContainer flow="space" className="max-w-5xl pt-3 sm:pt-6">
         <PageHeader
           title="Settings"
           description="Manage your local environment and transaction categories."
