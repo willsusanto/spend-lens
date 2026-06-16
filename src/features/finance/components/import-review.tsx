@@ -14,29 +14,64 @@ import { cn } from '@/utils/cn';
 
 export const ImportReview = ({ importId }: { importId: string }) => {
   const {
-    approveTransaction,
     confirmImport,
+    draftStagedTransactionCategories,
     hydrated,
     imports,
+    stagedTransactions,
     transactions,
-    updateTransactionCategory,
+    updateStagedTransactionCategory,
   } = useFinanceData();
 
   const batch = imports.find((item) => item.id === importId);
+  const stagedImportTransactions = useMemo(
+    () =>
+      stagedTransactions.filter(
+        (transaction) => transaction.importId === importId,
+      ),
+    [importId, stagedTransactions],
+  );
   const importedTransactions = useMemo(
     () =>
-      transactions.filter((transaction) => transaction.importId === importId),
-    [importId, transactions],
+      stagedImportTransactions.length > 0
+        ? stagedImportTransactions
+        : transactions.filter((transaction) => transaction.importId === importId),
+    [importId, stagedImportTransactions, transactions],
+  );
+  const isConfirmed = batch?.status === 'Approved';
+  const hasUnsavedCategoryChanges = importedTransactions.some(
+    (transaction) => draftStagedTransactionCategories[transaction.id],
   );
   const uncertainCount = importedTransactions.filter(
-    (transaction) =>
-      transaction.status === 'Review' ||
-      transaction.category === 'Uncategorized' ||
-      transaction.confidence < 70,
+    (transaction) => {
+      const category =
+        draftStagedTransactionCategories[transaction.id] ??
+        transaction.category;
+
+      return (
+        transaction.status === 'Review' ||
+        category === 'Uncategorized' ||
+        transaction.confidence < 70
+      );
+    },
   ).length;
+  const allCategorized =
+    importedTransactions.length > 0 &&
+    uncertainCount === 0 &&
+    importedTransactions.every((transaction) => {
+      const category =
+        draftStagedTransactionCategories[transaction.id] ??
+        transaction.category;
+
+      return category !== 'Uncategorized';
+    });
   const ollamaCount = importedTransactions.filter(
     (transaction) => transaction.categorizationSource === 'ollama',
   ).length;
+
+  const updateDraftCategory = (id: string, category: string) => {
+    updateStagedTransactionCategory(id, category);
+  };
 
   if (!hydrated) {
     return (
@@ -57,7 +92,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
           title="Review Imported Transactions"
           description={
             batch
-              ? `${batch.fileName} · ${batch.rows} rows · ${batch.status}`
+              ? `${batch.fileName} - ${batch.rows} rows - ${batch.status}`
               : 'Imported batch not found in local storage.'
           }
           eyebrow={
@@ -80,7 +115,9 @@ export const ImportReview = ({ importId }: { importId: string }) => {
               <button
                 type="button"
                 className="inline-flex min-h-10 items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                disabled={importedTransactions.length === 0}
+                disabled={
+                  isConfirmed || !allCategorized || hasUnsavedCategoryChanges
+                }
                 onClick={() => confirmImport(importId)}
               >
                 <ListChecks className="size-4" aria-hidden="true" />
@@ -129,21 +166,23 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
                     <tr className="border-b border-[hsl(var(--outline-variant))]">
                       <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Merchant / Source Text</th>
+                      <th className="px-4 py-3">Description</th>
                       <th className="px-4 py-3 text-right">Amount</th>
                       <th className="px-4 py-3">Category</th>
                       <th className="px-4 py-3">Confidence</th>
                       <th className="px-4 py-3">Reason</th>
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
                     {importedTransactions.map((transaction) => {
                       const isApproved = transaction.status === 'Approved';
+                      const category =
+                        draftStagedTransactionCategories[transaction.id] ??
+                        transaction.category;
                       const needsReview =
                         transaction.status === 'Review' ||
-                        transaction.category === 'Uncategorized' ||
+                        category === 'Uncategorized' ||
                         transaction.confidence < 70;
 
                       return (
@@ -163,11 +202,8 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               href={`/transactions/${transaction.id}`}
                               className="font-medium hover:underline"
                             >
-                              {transaction.merchant}
-                            </Link>
-                            <p className="mt-1 line-clamp-2 text-xs text-[hsl(var(--on-surface-variant))]">
                               {transaction.description}
-                            </p>
+                            </Link>
                           </td>
                           <td className="p-4 text-right font-mono font-medium">
                             {formatSignedCurrency(transaction.amount)}
@@ -175,21 +211,26 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                           <td className="p-4">
                             <label className="grid gap-2">
                               <span className="sr-only">
-                                Category for {transaction.merchant}
+                                Category for {transaction.description}
                               </span>
                               <select
                                 className={cn(
                                   'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
                                   needsReview &&
                                     'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
+                                  draftStagedTransactionCategories[
+                                    transaction.id
+                                  ] &&
+                                    'border-primary bg-[hsl(var(--surface-low))]',
                                 )}
-                                value={transaction.category}
+                                value={category}
                                 onChange={(event) =>
-                                  updateTransactionCategory(
+                                  updateDraftCategory(
                                     transaction.id,
                                     event.target.value,
                                   )
                                 }
+                                disabled={isConfirmed}
                               >
                                 {categories.map((category) => (
                                   <option key={category} value={category}>
@@ -201,7 +242,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
                               {transaction.categorizationSource === 'ollama'
                                 ? transaction.ollamaModel
-                                : 'Local fallback'}
+                                : 'Manual review'}
                             </p>
                           </td>
                           <td className="p-4">
@@ -253,16 +294,6 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                 ? 'Needs review'
                                 : transaction.status}
                             </span>
-                          </td>
-                          <td className="p-4">
-                            <button
-                              type="button"
-                              className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
-                              disabled={isApproved}
-                              onClick={() => approveTransaction(transaction.id)}
-                            >
-                              Approve
-                            </button>
                           </td>
                         </tr>
                       );

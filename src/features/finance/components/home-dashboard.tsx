@@ -13,17 +13,26 @@ import { DragEvent, useEffect, useRef, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { formatSignedCurrency } from '@/features/finance/data';
+import { categories, formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
-const processingPageSize = 5;
+const pageSizeOptions = [10, 30, 60] as const;
 
 export const HomeDashboard = () => {
-  const { activeImport, confirmImport, importCsv, imports, message } =
-    useFinanceData();
+  const {
+    activeImport,
+    confirmImport,
+    draftStagedTransactionCategories,
+    importCsv,
+    imports,
+    message,
+    updateStagedTransactionCategory,
+  } = useFinanceData();
   const [isDragging, setIsDragging] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof pageSizeOptions)[number]>(10);
   const inputRef = useRef<HTMLInputElement>(null);
   const latestImport = imports.find(
     (item) => item.id === activeImport.activeImportId,
@@ -31,18 +40,41 @@ export const HomeDashboard = () => {
   const isImporting = activeImport.isProcessing;
   const processedRows = activeImport.processedTransactions;
   const processingMessage = activeImport.message ?? message;
-  const pageCount = Math.max(
-    1,
-    Math.ceil(processedRows.length / processingPageSize),
+  const hasUnsavedCategoryChanges = processedRows.some(
+    (transaction) => draftStagedTransactionCategories[transaction.id],
   );
+  const pageCount = Math.max(1, Math.ceil(processedRows.length / pageSize));
   const visibleRows = processedRows.slice(
-    (page - 1) * processingPageSize,
-    page * processingPageSize,
+    (page - 1) * pageSize,
+    page * pageSize,
   );
+  const allRowsCategorized =
+    processedRows.length > 0 &&
+    processedRows.every((transaction) => {
+      const category =
+        draftStagedTransactionCategories[transaction.id] ??
+        transaction.category;
+
+      return (
+        category !== 'Uncategorized' &&
+        transaction.status !== 'Review' &&
+        transaction.confidence >= 70
+      );
+    });
 
   useEffect(() => {
     setPage(1);
-  }, [processedRows.length]);
+  }, [pageSize, processedRows.length]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  const updateDraftCategory = (id: string, category: string) => {
+    updateStagedTransactionCategory(id, category);
+  };
 
   const handleFiles = async (files: FileList | null) => {
     const file = files?.[0];
@@ -74,7 +106,7 @@ export const HomeDashboard = () => {
 
   return (
     <FinanceAppShell>
-      <PageContainer size="narrow" flow="space" className="pt-6 sm:pt-10">
+      <PageContainer flow="space" className="max-w-5xl pt-3 sm:pt-6">
         <PageHeader
           title="Home"
           description="Import a local CSV, categorize each row, then confirm the saved ledger entries."
@@ -143,7 +175,7 @@ export const HomeDashboard = () => {
                 </caption>
                 <thead className="bg-[hsl(var(--surface-low))]">
                   <tr className="border-b border-[hsl(var(--outline-variant))]">
-                    {['Date', 'Merchant', 'Category', 'Amount', 'Status'].map(
+                    {['Date', 'Description', 'Category', 'Amount'].map(
                       (header) => (
                         <th
                           key={header}
@@ -158,42 +190,69 @@ export const HomeDashboard = () => {
                 </thead>
                 <tbody aria-live="polite" aria-relevant="additions">
                   {visibleRows.length > 0 ? (
-                    visibleRows.map((transaction) => (
-                      <tr
-                        key={transaction.id}
-                        className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
-                      >
-                        <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
-                          {transaction.date}
-                        </td>
-                        <th scope="row" className="px-4 py-3 font-medium">
-                          {transaction.merchant}
-                        </th>
-                        <td className="px-4 py-3 text-[hsl(var(--on-surface-variant))]">
-                          {transaction.category}
-                        </td>
-                        <td
-                          className={cn(
-                            'whitespace-nowrap px-4 py-3 text-right font-mono font-semibold',
-                            transaction.amount > 0 &&
-                              'text-emerald-700 dark:text-emerald-300',
-                          )}
+                    visibleRows.map((transaction) => {
+                      const category =
+                        draftStagedTransactionCategories[transaction.id] ??
+                        transaction.category;
+
+                      return (
+                        <tr
+                          key={transaction.id}
+                          className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
                         >
-                          {formatSignedCurrency(transaction.amount)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex rounded-full bg-[hsl(var(--surface-high))] px-2.5 py-1 text-xs font-medium">
-                            {transaction.categorizationSource === 'ollama'
-                              ? 'AI processed'
-                              : 'Processed'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                          <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
+                            {transaction.date}
+                          </td>
+                          <th scope="row" className="px-4 py-3 font-medium">
+                            {transaction.description}
+                          </th>
+                          <td className="px-4 py-3">
+                            <label>
+                              <span className="sr-only">
+                                Category for {transaction.description}
+                              </span>
+                              <select
+                                className={cn(
+                                  'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
+                                  category === 'Uncategorized' &&
+                                    'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
+                                  draftStagedTransactionCategories[
+                                    transaction.id
+                                  ] &&
+                                    'border-primary bg-[hsl(var(--surface-low))]',
+                                )}
+                                value={category}
+                                onChange={(event) =>
+                                  updateDraftCategory(
+                                    transaction.id,
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                {categories.map((category) => (
+                                  <option key={category} value={category}>
+                                    {category}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </td>
+                          <td
+                            className={cn(
+                              'whitespace-nowrap px-4 py-3 text-right font-mono font-semibold',
+                              transaction.amount > 0 &&
+                                'text-emerald-700 dark:text-emerald-300',
+                            )}
+                          >
+                            {formatSignedCurrency(transaction.amount)}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={4}
                         className="px-4 py-10 text-center text-sm text-[hsl(var(--on-surface-variant))]"
                       >
                         No processed rows yet.
@@ -208,7 +267,27 @@ export const HomeDashboard = () => {
                 Showing {visibleRows.length} of {processedRows.length} processed
                 rows
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2">
+                  <span>Rows</span>
+                  <select
+                    className="min-h-8 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-2 text-xs"
+                    value={pageSize}
+                    onChange={(event) =>
+                      setPageSize(
+                        Number(
+                          event.target.value,
+                        ) as (typeof pageSizeOptions)[number],
+                      )
+                    }
+                  >
+                    {pageSizeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <span>
                   Page {page} of {pageCount}
                 </span>
@@ -238,7 +317,7 @@ export const HomeDashboard = () => {
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p aria-live="polite" className="text-sm font-medium">
-              {activeImport.finalBatchStatus === 'Confirmed' ? (
+              {activeImport.finalBatchStatus === 'Approved' ? (
                 <span className="inline-flex items-center gap-2">
                   <Check className="size-4" aria-hidden="true" />
                   Saved
@@ -257,7 +336,9 @@ export const HomeDashboard = () => {
               disabled={
                 !activeImport.activeImportId ||
                 isImporting ||
-                activeImport.finalBatchStatus === 'Confirmed'
+                activeImport.finalBatchStatus === 'Approved' ||
+                !allRowsCategorized ||
+                hasUnsavedCategoryChanges
               }
               onClick={saveLatestImport}
             >
