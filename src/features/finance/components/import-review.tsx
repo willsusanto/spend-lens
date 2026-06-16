@@ -35,30 +35,39 @@ export const ImportReview = ({ importId }: { importId: string }) => {
     () =>
       stagedImportTransactions.length > 0
         ? stagedImportTransactions
-        : transactions.filter((transaction) => transaction.importId === importId),
+        : transactions.filter(
+            (transaction) => transaction.importId === importId,
+          ),
     [importId, stagedImportTransactions, transactions],
   );
   const isConfirmed = batch?.status === 'Approved';
   const hasUnsavedCategoryChanges = importedTransactions.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
   );
-  const uncertainCount = importedTransactions.filter(
-    (transaction) => {
-      const category =
-        draftStagedTransactionCategories[transaction.id] ??
-        transaction.category;
-
-      return (
-        transaction.status === 'Review' ||
-        category === 'Uncategorized' ||
-        transaction.confidence < 70
-      );
-    },
+  const duplicateCount = importedTransactions.filter(
+    (transaction) => transaction.isDuplicate,
   ).length;
-  const allCategorized =
+  const reviewableTransactions = importedTransactions.filter(
+    (transaction) => !transaction.isDuplicate,
+  );
+  const uncertainCount = importedTransactions.filter((transaction) => {
+    if (transaction.isDuplicate) {
+      return false;
+    }
+
+    const category =
+      draftStagedTransactionCategories[transaction.id] ?? transaction.category;
+
+    return (
+      transaction.status === 'Review' ||
+      category === 'Uncategorized' ||
+      transaction.confidence < 70
+    );
+  }).length;
+  const canConfirmImport =
     importedTransactions.length > 0 &&
     uncertainCount === 0 &&
-    importedTransactions.every((transaction) => {
+    reviewableTransactions.every((transaction) => {
       const category =
         draftStagedTransactionCategories[transaction.id] ??
         transaction.category;
@@ -116,7 +125,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                 type="button"
                 className="inline-flex min-h-10 items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                 disabled={
-                  isConfirmed || !allCategorized || hasUnsavedCategoryChanges
+                  isConfirmed || !canConfirmImport || hasUnsavedCategoryChanges
                 }
                 onClick={() => confirmImport(importId)}
               >
@@ -142,13 +151,9 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   helper: 'Low-confidence or uncategorized',
                 },
                 {
-                  label: 'Approved',
-                  value: String(
-                    importedTransactions.filter(
-                      (transaction) => transaction.status === 'Approved',
-                    ).length,
-                  ),
-                  helper: 'Ready for the weekly summary',
+                  label: 'Duplicates',
+                  value: String(duplicateCount),
+                  helper: 'Matched by date, description, and amount',
                 },
               ].map((metric) => (
                 <MetricCard
@@ -181,15 +186,18 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                         draftStagedTransactionCategories[transaction.id] ??
                         transaction.category;
                       const needsReview =
-                        transaction.status === 'Review' ||
-                        category === 'Uncategorized' ||
-                        transaction.confidence < 70;
+                        !transaction.isDuplicate &&
+                        (transaction.status === 'Review' ||
+                          category === 'Uncategorized' ||
+                          transaction.confidence < 70);
 
                       return (
                         <tr
                           key={transaction.id}
                           className={cn(
                             'transition-colors hover:bg-[hsl(var(--surface-low))]',
+                            transaction.isDuplicate &&
+                              'border-l-4 border-l-rose-500 bg-rose-50/70 dark:bg-rose-950/25',
                             needsReview &&
                               'border-l-4 border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/25',
                           )}
@@ -216,6 +224,8 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               <select
                                 className={cn(
                                   'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
+                                  transaction.isDuplicate &&
+                                    'border-rose-500 bg-rose-50 text-rose-950 dark:bg-rose-950/40 dark:text-rose-100',
                                   needsReview &&
                                     'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
                                   draftStagedTransactionCategories[
@@ -230,7 +240,9 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                     event.target.value,
                                   )
                                 }
-                                disabled={isConfirmed}
+                                disabled={
+                                  isConfirmed || transaction.isDuplicate
+                                }
                               >
                                 {categories.map((category) => (
                                   <option key={category} value={category}>
@@ -240,9 +252,11 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               </select>
                             </label>
                             <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
-                              {transaction.categorizationSource === 'ollama'
-                                ? transaction.ollamaModel
-                                : 'Manual review'}
+                              {transaction.isDuplicate
+                                ? 'Duplicate'
+                                : transaction.categorizationSource === 'ollama'
+                                  ? transaction.ollamaModel
+                                  : 'Manual review'}
                             </p>
                           </td>
                           <td className="p-4">
@@ -270,12 +284,14 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             <span
                               className={cn(
                                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-                                isApproved
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-[hsl(var(--surface-high))]',
+                                transaction.isDuplicate
+                                  ? 'bg-rose-100 text-rose-950 dark:bg-rose-950/60 dark:text-rose-100'
+                                  : isApproved
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-[hsl(var(--surface-high))]',
                               )}
                             >
-                              {isApproved ? (
+                              {isApproved && !transaction.isDuplicate ? (
                                 <Check
                                   className="size-3.5"
                                   aria-hidden="true"
@@ -284,15 +300,19 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                 <span
                                   className={cn(
                                     'size-1.5 rounded-full',
-                                    needsReview
-                                      ? 'bg-amber-600'
-                                      : 'bg-[hsl(var(--on-surface-variant))]',
+                                    transaction.isDuplicate
+                                      ? 'bg-rose-600'
+                                      : needsReview
+                                        ? 'bg-amber-600'
+                                        : 'bg-[hsl(var(--on-surface-variant))]',
                                   )}
                                 />
                               )}
-                              {needsReview && !isApproved
-                                ? 'Needs review'
-                                : transaction.status}
+                              {transaction.isDuplicate
+                                ? 'Duplicate'
+                                : needsReview && !isApproved
+                                  ? 'Needs review'
+                                  : transaction.status}
                             </span>
                           </td>
                         </tr>

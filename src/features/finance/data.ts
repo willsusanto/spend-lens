@@ -10,6 +10,8 @@ export type FinanceTransaction = {
   category: string;
   confidence: number;
   status: TransactionStatus;
+  duplicateOfTransactionId?: string;
+  isDuplicate?: boolean;
   note?: string;
   aiReason?: string;
   categorizationSource?: CategorizationSource;
@@ -62,6 +64,29 @@ export const formatSignedCurrency = (amount: number) => {
 
   return formatCurrency(amount);
 };
+
+const getDuplicateDateValue = (value: string) => {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value.trim().toLowerCase();
+  }
+
+  return [
+    parsed.getFullYear(),
+    String(parsed.getMonth() + 1).padStart(2, '0'),
+    String(parsed.getDate()).padStart(2, '0'),
+  ].join('-');
+};
+
+export const getTransactionDuplicateKey = (
+  transaction: Pick<FinanceTransaction, 'amount' | 'date' | 'description'>,
+) =>
+  [
+    getDuplicateDateValue(transaction.date),
+    transaction.description.trim().replace(/\s+/g, ' ').toLowerCase(),
+    Math.round(transaction.amount * 100),
+  ].join('|');
 
 export const summaryMetrics = [
   {

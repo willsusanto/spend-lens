@@ -1,12 +1,12 @@
 'use client';
 
 import {
+  ArrowUpDown,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Plus,
   Search,
-  SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
@@ -28,7 +28,8 @@ import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
 type DateRange = 'all' | '30' | '90';
-type SortKey = 'newest' | 'oldest' | 'amount-high' | 'amount-low';
+type SortKey = 'amount' | 'category' | 'date' | 'description' | 'source';
+type SortDirection = 'asc' | 'desc';
 
 const pageSizeOptions = [10, 30, 60] as const;
 const transactionCategories = categories.filter(
@@ -63,7 +64,8 @@ export const TransactionsReview = () => {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [dateRange, setDateRange] = useState<DateRange>('30');
-  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof pageSizeOptions)[number]>(10);
@@ -76,7 +78,7 @@ export const TransactionsReview = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [categoryFilter, dateRange, pageSize, query, sortKey]);
+  }, [categoryFilter, dateRange, pageSize, query, sortDirection, sortKey]);
 
   const filteredTransactions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -106,25 +108,46 @@ export const TransactionsReview = () => {
         return matchesQuery && matchesCategory && matchesDate;
       })
       .toSorted((left, right) => {
-        if (sortKey === 'oldest') {
-          return getTimestamp(left.date) - getTimestamp(right.date);
+        const direction = sortDirection === 'asc' ? 1 : -1;
+        const leftCategory =
+          draftTransactionCategories[left.id] ?? left.category;
+        const rightCategory =
+          draftTransactionCategories[right.id] ?? right.category;
+
+        if (sortKey === 'amount') {
+          return (left.amount - right.amount) * direction;
         }
 
-        if (sortKey === 'amount-high') {
-          return right.amount - left.amount;
+        if (sortKey === 'category') {
+          return leftCategory.localeCompare(rightCategory) * direction;
         }
 
-        if (sortKey === 'amount-low') {
-          return left.amount - right.amount;
+        if (sortKey === 'description') {
+          return left.description.localeCompare(right.description) * direction;
         }
 
-        return getTimestamp(right.date) - getTimestamp(left.date);
+        if (sortKey === 'source') {
+          return (
+            getCategorySourceLabel(
+              left.categorizationSource,
+              Boolean(draftTransactionCategories[left.id]),
+            ).localeCompare(
+              getCategorySourceLabel(
+                right.categorizationSource,
+                Boolean(draftTransactionCategories[right.id]),
+              ),
+            ) * direction
+          );
+        }
+
+        return (getTimestamp(left.date) - getTimestamp(right.date)) * direction;
       });
   }, [
     categoryFilter,
     dateRange,
     draftTransactionCategories,
     query,
+    sortDirection,
     sortKey,
     transactions,
   ]);
@@ -170,6 +193,17 @@ export const TransactionsReview = () => {
 
   const updateDraftCategory = (id: string, category: string) => {
     updateTransactionCategory(id, category);
+  };
+
+  const updateSort = (nextSortKey: SortKey) => {
+    if (sortKey === nextSortKey) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+
+      return;
+    }
+
+    setSortKey(nextSortKey);
+    setSortDirection(nextSortKey === 'date' ? 'desc' : 'asc');
   };
 
   const toggleTransactionSelection = (id: string) => {
@@ -364,7 +398,7 @@ export const TransactionsReview = () => {
           }
         />
 
-        <search className="grid gap-3 border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-3 sm:grid-cols-[minmax(14rem,1fr)_auto_auto_auto]">
+        <search className="grid gap-3 border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-3 sm:grid-cols-[minmax(14rem,1fr)_auto_auto]">
           <label className="relative min-w-0">
             <Search
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2"
@@ -411,24 +445,37 @@ export const TransactionsReview = () => {
               <option value="all">All Dates</option>
             </select>
           </label>
-          <label className="relative">
-            <SlidersHorizontal
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <span className="sr-only">Sort transactions</span>
+        </search>
+
+        <div className="flex flex-col gap-3 border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Showing {visibleTransactions.length} of{' '}
+            {filteredTransactions.length}
+            {selectedTransactionIds.length > 0
+              ? ` - ${selectedTransactionIds.length} selected`
+              : ''}
+          </span>
+          <label className="flex items-center gap-2">
+            <span>Rows</span>
             <select
-              className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
-              value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              className="min-h-8 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-2 text-xs"
+              value={pageSize}
+              onChange={(event) =>
+                setPageSize(
+                  Number(
+                    event.target.value,
+                  ) as (typeof pageSizeOptions)[number],
+                )
+              }
             >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="amount-high">Amount High</option>
-              <option value="amount-low">Amount Low</option>
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </label>
-        </search>
+        </div>
 
         <section className="flex min-h-[34rem] flex-col overflow-clip border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
           <div className="min-h-0 flex-1 overflow-auto">
@@ -446,21 +493,46 @@ export const TransactionsReview = () => {
                     />
                   </th>
                   {[
-                    'Date',
-                    'Description',
-                    'Category',
-                    'Category Source',
-                    'Amount',
-                    'Action',
+                    { key: 'date' as const, label: 'Date' },
+                    { key: 'description' as const, label: 'Description' },
+                    { key: 'category' as const, label: 'Category' },
+                    { key: 'source' as const, label: 'Category Source' },
+                    { key: 'amount' as const, label: 'Amount' },
                   ].map((header) => (
                     <th
-                      key={header}
+                      key={header.key}
                       scope="col"
                       className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
                     >
-                      {header}
+                      <button
+                        type="button"
+                        className={cn(
+                          'inline-flex items-center gap-1.5 text-left uppercase tracking-[0.08em] transition-colors hover:text-[hsl(var(--foreground))]',
+                          sortKey === header.key &&
+                            'text-[hsl(var(--foreground))]',
+                          header.key === 'amount' && 'ml-auto',
+                        )}
+                        onClick={() => updateSort(header.key)}
+                      >
+                        {header.label}
+                        <ArrowUpDown className="size-3.5" aria-hidden="true" />
+                        <span className="sr-only">
+                          Sort {header.label}{' '}
+                          {sortKey === header.key
+                            ? sortDirection === 'asc'
+                              ? 'descending'
+                              : 'ascending'
+                            : 'ascending'}
+                        </span>
+                      </button>
                     </th>
                   ))}
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
+                  >
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -555,35 +627,8 @@ export const TransactionsReview = () => {
               </tbody>
             </table>
           </div>
-          <footer className="flex shrink-0 flex-col gap-3 border-t border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Showing {visibleTransactions.length} of{' '}
-              {filteredTransactions.length}
-              {selectedTransactionIds.length > 0
-                ? ` - ${selectedTransactionIds.length} selected`
-                : ''}
-            </span>
+          <footer className="flex shrink-0 flex-col gap-3 border-t border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-end">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2">
-                <span>Rows</span>
-                <select
-                  className="min-h-8 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-2 text-xs"
-                  value={pageSize}
-                  onChange={(event) =>
-                    setPageSize(
-                      Number(
-                        event.target.value,
-                      ) as (typeof pageSizeOptions)[number],
-                    )
-                  }
-                >
-                  {pageSizeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <span>
                 Page {page} of {pageCount}
               </span>
