@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { env } from '@/config/env';
 import {
   CategorizationSource,
+  FinanceStatus,
   FinanceTransaction,
   TransactionStatus,
 } from '@/features/finance/data';
@@ -41,6 +42,14 @@ type OllamaCategorizedResponse = {
   items?: OllamaCategorizedItem[];
 };
 
+type CategorizeResponse = {
+  transactions: FinanceTransaction[];
+  source: 'ollama' | 'manual-review';
+  status: FinanceStatus;
+  model?: string;
+  error?: string;
+};
+
 type OllamaCategorizedEnvelope = {
   items?: unknown;
   transactions?: unknown;
@@ -48,17 +57,32 @@ type OllamaCategorizedEnvelope = {
 
 const categories = [
   'Income',
-  'Food & Dining',
+  'Bills / Utilities',
+  'Transport',
   'Groceries',
-  'Transportation',
-  'Subscriptions',
+  'Eating Out',
   'Shopping',
-  'Transfer',
-  'Software',
-  'Utilities',
-  'Health',
-  'Travel',
+  'Entertainment',
+  'Subscriptions',
+  'Savings / Investment',
+  'Donations',
+  'Misc',
   'Uncategorized',
+] as const;
+
+const categoryGuidance = [
+  'Income: credits, salary, payouts, deposits, refunds, or incoming transfers.',
+  'Bills / Utilities: PLN, water/air, internet, IPL, utilities, recurring bills.',
+  'Transport: bensin, ojol, ride hailing, parking/parkir, tolls, public transport.',
+  'Groceries: bahan makanan, household stock/stok rumah, supermarket, minimarket.',
+  'Eating Out: meals or drinks consumed directly, restaurants, cafes, coffee, makan/minum.',
+  'Shopping: goods, clothes/pakaian, skincare, personal items, ecommerce purchases.',
+  'Entertainment: hiburan, games, cinema/nonton, events, recreation.',
+  'Subscriptions: monthly subscriptions/langganan bulanan, streaming, software subscriptions.',
+  'Savings / Investment: savings/tabungan, investments/investasi, brokerage, deposits set aside.',
+  'Donations: donasi, zakat, charity, religious giving.',
+  'Misc: lain-lain, rare one-off expenses when no better category fits.',
+  'Uncategorized: use when the description is too ambiguous or confidence is low.',
 ] as const;
 
 const logOllama = (message: string, context?: Record<string, unknown>) => {
@@ -179,13 +203,13 @@ const applyFallback = (
 ): FinanceTransaction[] =>
   transactions.map((transaction) => ({
     ...transaction,
-    status: getStatus(transaction.category, transaction.confidence),
-    aiReason: `Ollama categorization could not be applied, so this row is using the local CSV rule result. ${detail}`,
-    categorizationSource: 'heuristic' satisfies CategorizationSource,
+    confidence: Math.min(transaction.confidence, 31),
+    status: 'Review' satisfies TransactionStatus,
+    aiReason: `AI categorization could not be applied, so this row needs manual review. ${detail}`,
   }));
 
 const buildPrompt = (transactions: FinanceTransaction[]) => `
-You are a JSON-only transaction categorizer for a local-first finance app.
+You are a JSON-only transaction categorizer for a finance app.
 
 Your entire response must be one valid JSON object. It must start with { and end with }.
 Do not output markdown, code fences, comments, explanations, or trailing commas.
@@ -207,13 +231,20 @@ Return exactly one item for each input transaction id in this exact shape:
 Allowed categories:
 ${categories.join(', ')}
 
+Category guidance:
+${categoryGuidance.map((item) => `- ${item}`).join('\n')}
+
 Rules:
 - Copy each transaction id exactly.
+- Positive amounts are credits/incoming money. Negative amounts are debits/outgoing money.
 - Use Income only for credits, salary, payouts, deposits, refunds, or incoming transfers.
-- Use Transfer for person-to-person or account movement when no spending category is clear.
-- Use Uncategorized when the merchant or description is too ambiguous.
-- If uncertain, use category "Uncategorized" with confidence 31.
-- Evaluate each row independently. Do not copy merchant details from another row.
+- Use purchase context keywords when present.
+- Do not invent categories outside the allowed list.
+- Indonesian bank method prefixes such as "TRSF E-BANKING DB", "TRANSAKSI DEBIT TGL", "KR OTOMATIS", QR codes, terminal ids, and reference numbers are not category evidence by themselves.
+- For merged bank text, classify only when the description contains useful context like a business name, transfer note, product keyword, salary/refund wording, or category keyword.
+- Use Uncategorized when the description is too ambiguous.
+- If uncertain, keep the current category with confidence below 70 and explain what is missing.
+- Evaluate each row independently. Do not copy details from another row.
 - The reason must only cite text present in that row or the category rule used.
 - Confidence is 0-100. Use under 70 when a human should review it.
 - Keep each reason under 14 words.
@@ -223,7 +254,6 @@ ${JSON.stringify(
   transactions.map((transaction) => ({
     id: transaction.id,
     date: transaction.date,
-    merchant: transaction.merchant,
     description: transaction.description,
     amount: transaction.amount,
     currentCategory: transaction.category,
@@ -354,9 +384,9 @@ export async function POST(request: Request) {
   if (transactions.length === 0) {
     return NextResponse.json({
       transactions: [],
-      source: 'heuristic',
-      status: 'No rows',
-    });
+      source: 'manual-review',
+      status: 'Review',
+    } satisfies CategorizeResponse);
   }
 
   const endpoint = env.OLLAMA_ENDPOINT.replace(/\/$/, '');
@@ -435,8 +465,7 @@ export async function POST(request: Request) {
           ...transaction,
           status: getStatus(transaction.category, transaction.confidence),
           aiReason:
-            'Ollama did not return a category for this row; local rule retained.',
-          categorizationSource: 'heuristic' satisfies CategorizationSource,
+            'Ollama did not return a category for this row; manual review needed.',
         };
       }
 
@@ -446,14 +475,15 @@ export async function POST(request: Request) {
       )
         ? result.category
         : 'Uncategorized';
+      const resolvedCategory = confidence < 70 ? transaction.category : category;
 
       return {
         ...transaction,
-        category,
+        category: resolvedCategory,
         confidence,
-        status: getStatus(category, confidence),
+        status: getStatus(resolvedCategory, confidence),
         aiReason: result.reason,
-        categorizationSource: 'ollama' satisfies CategorizationSource,
+        categorizationSource: 'ollama' as const satisfies CategorizationSource,
         ollamaModel: activeModel,
       };
     });
@@ -467,13 +497,17 @@ export async function POST(request: Request) {
     return NextResponse.json({
       transactions: updatedTransactions,
       source: 'ollama',
-      status: 'AI categorized',
+      status: updatedTransactions.some(
+        (transaction) => transaction.status === 'Review',
+      )
+        ? 'Review'
+        : 'Pending',
       model: activeModel,
-    });
+    } satisfies CategorizeResponse);
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown error.';
 
-    logOllama('Falling back to heuristic categorization', {
+    logOllama('AI categorization failed; marking rows for manual review', {
       endpoint,
       model,
       transactionCount: transactions.length,
@@ -482,9 +516,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       transactions: applyFallback(transactions, detail),
-      source: 'heuristic',
-      status: 'Heuristic fallback',
+      source: 'manual-review',
+      status: 'Review',
       error: detail,
-    });
+    } satisfies CategorizeResponse);
   }
 }

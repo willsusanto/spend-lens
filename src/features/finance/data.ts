@@ -1,10 +1,10 @@
-export type TransactionStatus = 'Pending' | 'Review' | 'Approved';
-export type CategorizationSource = 'ollama' | 'heuristic';
+export type FinanceStatus = 'Pending' | 'Review' | 'Approved';
+export type TransactionStatus = FinanceStatus;
+export type CategorizationSource = 'ollama' | 'manual';
 
 export type FinanceTransaction = {
   id: string;
   date: string;
-  merchant: string;
   description: string;
   amount: number;
   category: string;
@@ -23,7 +23,24 @@ export type ImportBatch = {
   fileName: string;
   date: string;
   rows: number;
-  status: string;
+  status: FinanceStatus;
+};
+
+export const normalizeFinanceStatus = (status: unknown): FinanceStatus => {
+  if (status === 'Approved' || status === 'Confirmed' || status === 'Cleared') {
+    return 'Approved';
+  }
+
+  if (
+    status === 'Review' ||
+    status === 'Needs manual review' ||
+    status === 'Failed' ||
+    status === 'Partially categorized'
+  ) {
+    return 'Review';
+  }
+
+  return 'Pending';
 };
 
 export const formatCurrency = (amount: number) =>
@@ -71,34 +88,34 @@ export const seedImports: ImportBatch[] = [
     fileName: 'chase_checking_oct.csv',
     date: 'Oct 22, 10:45 AM',
     rows: 142,
-    status: 'Processed',
+    status: 'Pending',
   },
   {
     id: 'seed-import-amex-oct',
     fileName: 'amex_credit_oct.csv',
     date: 'Oct 20, 09:12 AM',
     rows: 89,
-    status: 'Processed',
+    status: 'Pending',
   },
   {
     id: 'seed-import-citi-sep',
     fileName: 'citi_rewards_sep.csv',
     date: 'Oct 05, 14:20 PM',
     rows: 215,
-    status: 'Processed',
+    status: 'Pending',
   },
 ];
 
 export const spendingByCategory = [
   { name: 'Groceries', amount: '$420.00', percent: 75, tone: 'bg-primary' },
   {
-    name: 'Dining Out',
+    name: 'Eating Out',
     amount: '$285.50',
     percent: 45,
     tone: 'bg-[hsl(var(--surface-tint))]',
   },
   {
-    name: 'Transportation',
+    name: 'Transport',
     amount: '$150.00',
     percent: 30,
     tone: 'bg-[hsl(var(--outline))]',
@@ -110,7 +127,7 @@ export const spendingByCategory = [
     tone: 'bg-[hsl(var(--outline-variant))]',
   },
   {
-    name: 'Utilities',
+    name: 'Bills / Utilities',
     amount: '$290.00',
     percent: 50,
     tone: 'bg-secondary-foreground',
@@ -121,18 +138,16 @@ export const seedTransactions: FinanceTransaction[] = [
   {
     id: 'aws-web-services',
     date: 'Oct 24, 2023',
-    merchant: 'Starbucks',
-    description: 'SBUX STORE #10294',
+    description: 'Starbucks SBUX STORE #10294',
     amount: -4.8,
-    category: 'Food & Dining',
+    category: 'Eating Out',
     confidence: 95,
     status: 'Pending',
   },
   {
     id: 'unknown-pos',
     date: 'Oct 23, 2023',
-    merchant: 'Unknown POS',
-    description: 'TERMINAL ID: 8847291',
+    description: 'Unknown POS TERMINAL ID: 8847291',
     amount: -18.5,
     category: 'Uncategorized',
     confidence: 31,
@@ -141,28 +156,25 @@ export const seedTransactions: FinanceTransaction[] = [
   {
     id: 'amazon-web-services',
     date: 'Oct 22, 2023',
-    merchant: 'Amazon Web Services',
-    description: 'AWS EMEA SARL',
+    description: 'Amazon Web Services AWS EMEA SARL',
     amount: -45.12,
-    category: 'Software',
+    category: 'Subscriptions',
     confidence: 99,
     status: 'Pending',
   },
   {
     id: 'uber-rides',
     date: 'Oct 21, 2023',
-    merchant: 'Uber Rides',
-    description: 'UBER *TRIP SF',
+    description: 'Uber Rides UBER *TRIP SF',
     amount: -24,
-    category: 'Transportation',
+    category: 'Transport',
     confidence: 88,
     status: 'Approved',
   },
   {
     id: 'stripe-payout',
     date: 'Oct 15, 2023',
-    merchant: 'Stripe Payout',
-    description: 'STRIPE TRANSFER',
+    description: 'Stripe Payout STRIPE TRANSFER',
     amount: 1240,
     category: 'Income',
     confidence: 100,
@@ -172,15 +184,15 @@ export const seedTransactions: FinanceTransaction[] = [
 
 export const categories = [
   'Income',
-  'Food & Dining',
+  'Bills / Utilities',
+  'Transport',
   'Groceries',
-  'Transportation',
-  'Subscriptions',
+  'Eating Out',
   'Shopping',
-  'Transfer',
-  'Software',
-  'Utilities',
-  'Health',
-  'Travel',
+  'Entertainment',
+  'Subscriptions',
+  'Savings / Investment',
+  'Donations',
+  'Misc',
   'Uncategorized',
 ];

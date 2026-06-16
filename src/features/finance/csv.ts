@@ -1,4 +1,4 @@
-import { FinanceTransaction, ImportBatch, TransactionStatus } from './data';
+import { FinanceTransaction, ImportBatch } from './data';
 
 type CsvRow = Record<string, string>;
 
@@ -53,59 +53,6 @@ const formatDate = (value: string) => {
     day: '2-digit',
     year: 'numeric',
   }).format(date);
-};
-
-const inferCategory = (description: string, amount: number) => {
-  const text = description.toLowerCase();
-
-  if (
-    amount > 0 ||
-    /salary|payroll|stripe|deposit|transfer in|bunga|kredit/.test(text)
-  ) {
-    return { category: 'Income', confidence: 96 };
-  }
-
-  if (
-    /starbucks|coffee|restaurant|cafe|dining|mcdonald|grabfood|kopi|warung|makan|resto/.test(
-      text,
-    )
-  ) {
-    return { category: 'Food & Dining', confidence: 88 };
-  }
-
-  if (
-    /grocery|market|supermarket|whole foods|trader joe|hypermart|indomaret|alfamart|ultra milk|susu/.test(
-      text,
-    )
-  ) {
-    return { category: 'Groceries', confidence: 90 };
-  }
-
-  if (/uber|grab|taxi|lyft|train|metro|transit|gojek|tol|parkir/.test(text)) {
-    return { category: 'Transportation', confidence: 84 };
-  }
-
-  if (/netflix|spotify|apple.com\/bill|subscription|adobe/.test(text)) {
-    return { category: 'Subscriptions', confidence: 91 };
-  }
-
-  if (/aws|google cloud|azure|cloud|software|github/.test(text)) {
-    return { category: 'Software', confidence: 89 };
-  }
-
-  if (/electric|water|utility|internet|phone/.test(text)) {
-    return { category: 'Utilities', confidence: 82 };
-  }
-
-  if (/trsf|transfer|e-banking|ebanking/.test(text)) {
-    return { category: 'Transfer', confidence: 72 };
-  }
-
-  if (/qr|qris|transaksi debit/.test(text)) {
-    return { category: 'Shopping', confidence: 68 };
-  }
-
-  return { category: 'Uncategorized', confidence: 31 };
 };
 
 const parseCsvRows = (text: string) => {
@@ -222,14 +169,10 @@ export const parseTransactionsCsv = (
       : -1;
 
   const transactions = csvRows.map((row, index) => {
-    const rawDescription =
+    const sourceText =
       pick(row, ['merchant', 'payee', 'name']) ||
       pick(row, ['description', 'details', 'memo', 'narrative']) ||
       pick(row, ['keterangan']);
-    const description =
-      pick(row, ['description', 'details', 'memo', 'narrative']) ||
-      pick(row, ['keterangan']) ||
-      rawDescription;
     const direction =
       directionIndex >= 0
         ? row[`column${directionIndex}`]?.trim().toUpperCase()
@@ -240,11 +183,6 @@ export const parseTransactionsCsv = (
       parseAmount(pick(row, ['credit'])) -
         Math.abs(parseAmount(pick(row, ['debit'])));
     const amount = direction === 'DB' ? -Math.abs(rawAmount) : rawAmount;
-    const inferred = inferCategory(`${rawDescription} ${description}`, amount);
-    const status: TransactionStatus =
-      inferred.category === 'Uncategorized' || inferred.confidence < 70
-        ? 'Review'
-        : 'Pending';
 
     return {
       id: `${importId}-${index}`,
@@ -252,14 +190,12 @@ export const parseTransactionsCsv = (
         pick(row, ['date', 'transaction date', 'posted date']) ||
           pick(row, ['tanggal']),
       ),
-      merchant: rawDescription || 'Unknown Merchant',
-      description: description || rawDescription || 'No description',
+      description: sourceText || 'Unknown transaction',
       amount,
-      category: inferred.category,
-      confidence: inferred.confidence,
-      status,
-      aiReason: 'Initial local rule match before Ollama categorization.',
-      categorizationSource: 'heuristic' as const,
+      category: 'Uncategorized',
+      confidence: 31,
+      status: 'Review' as const,
+      aiReason: 'Waiting for AI categorization.',
       importId,
       sourceFile: fileName,
     };
@@ -276,7 +212,7 @@ export const parseTransactionsCsv = (
         minute: '2-digit',
       }).format(new Date()),
       rows: transactions.length,
-      status: 'Parsed',
+      status: 'Pending',
     },
     transactions,
   };

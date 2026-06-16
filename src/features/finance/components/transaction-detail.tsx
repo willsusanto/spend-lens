@@ -49,7 +49,7 @@ export const TransactionDetail = ({
         (item) =>
           item.id !== transaction.id &&
           (item.category === transaction.category ||
-            item.merchant === transaction.merchant),
+            item.description === transaction.description),
       )
       .slice(0, 4);
   }, [transaction, transactions]);
@@ -125,11 +125,11 @@ export const TransactionDetail = ({
     <FinanceAppShell>
       <PageContainer as="form" flow="grid" onSubmit={handleSave}>
         <PageHeader
-          title={transaction.merchant}
+          title={transaction.description}
           description={
             <>
               {transaction.date}
-              {transaction.sourceFile ? ` · ${transaction.sourceFile}` : ''}
+              {transaction.sourceFile ? ` - ${transaction.sourceFile}` : ''}
             </>
           }
           eyebrow={
@@ -210,7 +210,7 @@ export const TransactionDetail = ({
               <dl className="grid grid-cols-1 gap-4 p-5 text-xs md:grid-cols-2">
                 <div>
                   <dt className="mb-1 text-[hsl(var(--on-surface-variant))]">
-                    Original Description
+                    Source Text
                   </dt>
                   <dd className="rounded bg-[hsl(var(--surface-high))] px-2 py-1 font-mono text-[0.8125rem] leading-5">
                     {transaction.description}
@@ -259,10 +259,10 @@ export const TransactionDetail = ({
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">
-                          {item.merchant}
+                          {item.description}
                         </span>
                         <span className="text-xs text-[hsl(var(--on-surface-variant))]">
-                          {item.date} · {item.category}
+                          {item.date} - {item.category}
                         </span>
                       </span>
                       <span className="shrink-0 font-mono text-xs">
@@ -308,7 +308,7 @@ export const TransactionDetail = ({
               <p className="mt-3 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
                 {transaction.categorizationSource === 'ollama'
                   ? transaction.ollamaModel
-                  : 'Local fallback'}
+                  : 'Manual review'}
               </p>
             </Panel>
 
