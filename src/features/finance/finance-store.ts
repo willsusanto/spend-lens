@@ -22,7 +22,6 @@ export type FinanceStore = {
 const transactionsKey = 'ledgerlocal.transactions';
 const stagedTransactionsKey = 'ledgerlocal.staged-transactions';
 const importsKey = 'ledgerlocal.imports';
-const legacyLearnedRulesKey = 'ledgerlocal.learned-category-rules';
 
 const readStored = <T>(key: string, fallback: T) => {
   if (typeof window === 'undefined') {
@@ -75,10 +74,6 @@ const writeStored = async <T>(key: string, value: T) => {
 
 export const localStorageFinanceStore: FinanceStore = {
   load: async () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(legacyLearnedRulesKey);
-    }
-
     return {
       imports: normalizeImports(
         readStored<StoredImportBatch[]>(importsKey, seedImports),

@@ -6,6 +6,7 @@ import {
   FinanceStatus,
   FinanceTransaction,
   TransactionStatus,
+  categories,
 } from '@/features/finance/data';
 
 export const runtime = 'nodejs';
@@ -54,21 +55,6 @@ type OllamaCategorizedEnvelope = {
   items?: unknown;
   transactions?: unknown;
 };
-
-const categories = [
-  'Income',
-  'Bills / Utilities',
-  'Transport',
-  'Groceries',
-  'Eating Out',
-  'Shopping',
-  'Entertainment',
-  'Subscriptions',
-  'Savings / Investment',
-  'Donations',
-  'Misc',
-  'Uncategorized',
-] as const;
 
 const categoryGuidance = [
   'Income: credits, salary, payouts, deposits, refunds, or incoming transfers.',
@@ -475,7 +461,8 @@ export async function POST(request: Request) {
       )
         ? result.category
         : 'Uncategorized';
-      const resolvedCategory = confidence < 70 ? transaction.category : category;
+      const resolvedCategory =
+        confidence < 70 ? transaction.category : category;
 
       return {
         ...transaction,
