@@ -13,12 +13,13 @@ import { DragEvent, useEffect, useRef, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
 import {
-  categories,
-  formatSignedCurrency,
-  pageSizeOptions,
-} from '@/features/finance/data';
+  isDuplicateTransaction,
+  isSaveableTransaction,
+} from '@/features/finance/duplicate-transactions';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
 
 export const HomeDashboard = () => {
@@ -31,6 +32,7 @@ export const HomeDashboard = () => {
     message,
     updateStagedTransactionCategory,
   } = useFinanceData();
+  const { categories } = useFinanceSettings();
   const [isDragging, setIsDragging] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
@@ -41,8 +43,10 @@ export const HomeDashboard = () => {
   );
   const isImporting = activeImport.isProcessing;
   const processedRows = activeImport.processedTransactions;
+  const duplicateRows = processedRows.filter(isDuplicateTransaction);
+  const saveableRows = processedRows.filter(isSaveableTransaction);
   const processingMessage = activeImport.message ?? message;
-  const hasUnsavedCategoryChanges = processedRows.some(
+  const hasUnsavedCategoryChanges = saveableRows.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
   );
   const pageCount = Math.max(1, Math.ceil(processedRows.length / pageSize));
@@ -50,9 +54,9 @@ export const HomeDashboard = () => {
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const allRowsCategorized =
-    processedRows.length > 0 &&
-    processedRows.every((transaction) => {
+  const allSaveableRowsCategorized =
+    saveableRows.length > 0 &&
+    saveableRows.every((transaction) => {
       const category =
         draftStagedTransactionCategories[transaction.id] ??
         transaction.category;
@@ -63,6 +67,11 @@ export const HomeDashboard = () => {
         transaction.confidence >= 70
       );
     });
+  const canResolveImport =
+    processedRows.length > 0 &&
+    (saveableRows.length > 0
+      ? allSaveableRowsCategorized
+      : duplicateRows.length > 0);
 
   useEffect(() => {
     setPage(1);
@@ -177,30 +186,44 @@ export const HomeDashboard = () => {
                 </caption>
                 <thead className="bg-[hsl(var(--surface-low))]">
                   <tr className="border-b border-[hsl(var(--outline-variant))]">
-                    {['Date', 'Description', 'Category', 'Amount'].map(
-                      (header) => (
-                        <th
-                          key={header}
-                          scope="col"
-                          className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                        >
-                          {header}
-                        </th>
-                      ),
-                    )}
+                    {[
+                      'Date',
+                      'Description',
+                      'Category',
+                      'Amount',
+                      'Status',
+                    ].map((header) => (
+                      <th
+                        key={header}
+                        scope="col"
+                        className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody aria-live="polite" aria-relevant="additions">
                   {visibleRows.length > 0 ? (
                     visibleRows.map((transaction) => {
+                      const isDuplicate = isDuplicateTransaction(transaction);
                       const category =
                         draftStagedTransactionCategories[transaction.id] ??
                         transaction.category;
+                      const needsReview =
+                        !isDuplicate &&
+                        (category === 'Uncategorized' ||
+                          transaction.status === 'Review' ||
+                          transaction.confidence < 70);
 
                       return (
                         <tr
                           key={transaction.id}
-                          className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
+                          className={cn(
+                            'border-b border-[hsl(var(--outline-variant))] last:border-b-0',
+                            isDuplicate &&
+                              'bg-[hsl(var(--surface-low))] text-[hsl(var(--on-surface-variant))]',
+                          )}
                         >
                           <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
                             {transaction.date}
@@ -209,35 +232,41 @@ export const HomeDashboard = () => {
                             {transaction.description}
                           </th>
                           <td className="px-4 py-3">
-                            <label>
-                              <span className="sr-only">
-                                Category for {transaction.description}
+                            {isDuplicate ? (
+                              <span className="inline-flex min-h-9 items-center rounded bg-[hsl(var(--surface-high))] px-2 text-xs font-medium">
+                                Duplicate
                               </span>
-                              <select
-                                className={cn(
-                                  'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
-                                  category === 'Uncategorized' &&
-                                    'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
-                                  draftStagedTransactionCategories[
-                                    transaction.id
-                                  ] &&
-                                    'border-primary bg-[hsl(var(--surface-low))]',
-                                )}
-                                value={category}
-                                onChange={(event) =>
-                                  updateDraftCategory(
-                                    transaction.id,
-                                    event.target.value,
-                                  )
-                                }
-                              >
-                                {categories.map((category) => (
-                                  <option key={category} value={category}>
-                                    {category}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                            ) : (
+                              <label>
+                                <span className="sr-only">
+                                  Category for {transaction.description}
+                                </span>
+                                <select
+                                  className={cn(
+                                    'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
+                                    category === 'Uncategorized' &&
+                                      'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
+                                    draftStagedTransactionCategories[
+                                      transaction.id
+                                    ] &&
+                                      'border-primary bg-[hsl(var(--surface-low))]',
+                                  )}
+                                  value={category}
+                                  onChange={(event) =>
+                                    updateDraftCategory(
+                                      transaction.id,
+                                      event.target.value,
+                                    )
+                                  }
+                                >
+                                  {categories.map((category) => (
+                                    <option key={category} value={category}>
+                                      {category}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
                           </td>
                           <td
                             className={cn(
@@ -248,13 +277,36 @@ export const HomeDashboard = () => {
                           >
                             {formatSignedCurrency(transaction.amount)}
                           </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-high))] px-2 py-1 text-xs font-medium',
+                                isDuplicate &&
+                                  'bg-[hsl(var(--surface-highest))]',
+                                needsReview &&
+                                  'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100',
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  'size-1.5 rounded-full bg-[hsl(var(--on-surface-variant))]',
+                                  needsReview && 'bg-amber-600',
+                                )}
+                              />
+                              {isDuplicate
+                                ? 'Duplicate'
+                                : needsReview
+                                  ? 'Needs review'
+                                  : 'Ready'}
+                            </span>
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-4 py-10 text-center text-sm text-[hsl(var(--on-surface-variant))]"
                       >
                         No processed rows yet.
@@ -324,10 +376,20 @@ export const HomeDashboard = () => {
                   <Check className="size-4" aria-hidden="true" />
                   Saved
                 </span>
+              ) : activeImport.finalBatchStatus === 'Duplicate' ? (
+                'Duplicates skipped'
               ) : latestImport ? (
-                `${latestImport.rows} rows ready to save`
+                `${saveableRows.length} rows ready to save${
+                  duplicateRows.length > 0
+                    ? `, ${duplicateRows.length} duplicate`
+                    : ''
+                }`
               ) : processedRows.length > 0 ? (
-                `${processedRows.length} rows processed so far`
+                `${processedRows.length} rows processed so far${
+                  duplicateRows.length > 0
+                    ? `, ${duplicateRows.length} duplicate`
+                    : ''
+                }`
               ) : (
                 'No processed import yet'
               )}
@@ -339,13 +401,16 @@ export const HomeDashboard = () => {
                 !activeImport.activeImportId ||
                 isImporting ||
                 activeImport.finalBatchStatus === 'Approved' ||
-                !allRowsCategorized ||
+                activeImport.finalBatchStatus === 'Duplicate' ||
+                !canResolveImport ||
                 hasUnsavedCategoryChanges
               }
               onClick={saveLatestImport}
             >
               <Check className="size-4" aria-hidden="true" />
-              Confirm Saved
+              {saveableRows.length === 0 && duplicateRows.length > 0
+                ? 'Dismiss Duplicates'
+                : 'Confirm Saved'}
             </button>
           </div>
         </Panel>

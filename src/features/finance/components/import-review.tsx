@@ -8,8 +8,13 @@ import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { MetricCard } from '@/features/finance/components/metric-card';
-import { categories, formatSignedCurrency } from '@/features/finance/data';
+import { formatSignedCurrency } from '@/features/finance/data';
+import {
+  isDuplicateTransaction,
+  isSaveableTransaction,
+} from '@/features/finance/duplicate-transactions';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
 
 export const ImportReview = ({ importId }: { importId: string }) => {
@@ -22,6 +27,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
     transactions,
     updateStagedTransactionCategory,
   } = useFinanceData();
+  const { categories } = useFinanceSettings();
 
   const batch = imports.find((item) => item.id === importId);
   const stagedImportTransactions = useMemo(
@@ -35,36 +41,47 @@ export const ImportReview = ({ importId }: { importId: string }) => {
     () =>
       stagedImportTransactions.length > 0
         ? stagedImportTransactions
-        : transactions.filter((transaction) => transaction.importId === importId),
+        : transactions.filter(
+            (transaction) => transaction.importId === importId,
+          ),
     [importId, stagedImportTransactions, transactions],
   );
-  const isConfirmed = batch?.status === 'Approved';
-  const hasUnsavedCategoryChanges = importedTransactions.some(
+  const duplicateTransactions = importedTransactions.filter(
+    isDuplicateTransaction,
+  );
+  const saveableTransactions = importedTransactions.filter(
+    isSaveableTransaction,
+  );
+  const isResolved =
+    batch?.status === 'Approved' || batch?.status === 'Duplicate';
+  const hasUnsavedCategoryChanges = saveableTransactions.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
   );
-  const uncertainCount = importedTransactions.filter(
-    (transaction) => {
-      const category =
-        draftStagedTransactionCategories[transaction.id] ??
-        transaction.category;
+  const uncertainCount = saveableTransactions.filter((transaction) => {
+    const category =
+      draftStagedTransactionCategories[transaction.id] ?? transaction.category;
 
-      return (
-        transaction.status === 'Review' ||
-        category === 'Uncategorized' ||
-        transaction.confidence < 70
-      );
-    },
-  ).length;
+    return (
+      transaction.status === 'Review' ||
+      category === 'Uncategorized' ||
+      transaction.confidence < 70
+    );
+  }).length;
   const allCategorized =
-    importedTransactions.length > 0 &&
+    saveableTransactions.length > 0 &&
     uncertainCount === 0 &&
-    importedTransactions.every((transaction) => {
+    saveableTransactions.every((transaction) => {
       const category =
         draftStagedTransactionCategories[transaction.id] ??
         transaction.category;
 
       return category !== 'Uncategorized';
     });
+  const canResolveImport =
+    importedTransactions.length > 0 &&
+    (saveableTransactions.length > 0
+      ? allCategorized
+      : duplicateTransactions.length > 0);
   const ollamaCount = importedTransactions.filter(
     (transaction) => transaction.categorizationSource === 'ollama',
   ).length;
@@ -116,12 +133,15 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                 type="button"
                 className="inline-flex min-h-10 items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                 disabled={
-                  isConfirmed || !allCategorized || hasUnsavedCategoryChanges
+                  isResolved || !canResolveImport || hasUnsavedCategoryChanges
                 }
                 onClick={() => confirmImport(importId)}
               >
                 <ListChecks className="size-4" aria-hidden="true" />
-                Confirm Import
+                {saveableTransactions.length === 0 &&
+                duplicateTransactions.length > 0
+                  ? 'Dismiss Duplicates'
+                  : 'Confirm Import'}
               </button>
             </>
           }
@@ -129,7 +149,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
 
         {importedTransactions.length > 0 ? (
           <>
-            <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
               {[
                 {
                   label: 'Rows Imported',
@@ -137,18 +157,19 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   helper: `${ollamaCount} categorized by Ollama`,
                 },
                 {
+                  label: 'Ready to Save',
+                  value: String(saveableTransactions.length),
+                  helper: 'Non-duplicate rows',
+                },
+                {
                   label: 'Needs Review',
                   value: String(uncertainCount),
                   helper: 'Low-confidence or uncategorized',
                 },
                 {
-                  label: 'Approved',
-                  value: String(
-                    importedTransactions.filter(
-                      (transaction) => transaction.status === 'Approved',
-                    ).length,
-                  ),
-                  helper: 'Ready for the weekly summary',
+                  label: 'Duplicates',
+                  value: String(duplicateTransactions.length),
+                  helper: 'Skipped on confirm',
                 },
               ].map((metric) => (
                 <MetricCard
@@ -176,20 +197,24 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   </thead>
                   <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
                     {importedTransactions.map((transaction) => {
+                      const isDuplicate = isDuplicateTransaction(transaction);
                       const isApproved = transaction.status === 'Approved';
                       const category =
                         draftStagedTransactionCategories[transaction.id] ??
                         transaction.category;
                       const needsReview =
-                        transaction.status === 'Review' ||
-                        category === 'Uncategorized' ||
-                        transaction.confidence < 70;
+                        !isDuplicate &&
+                        (transaction.status === 'Review' ||
+                          category === 'Uncategorized' ||
+                          transaction.confidence < 70);
 
                       return (
                         <tr
                           key={transaction.id}
                           className={cn(
                             'transition-colors hover:bg-[hsl(var(--surface-low))]',
+                            isDuplicate &&
+                              'border-l-4 border-l-[hsl(var(--outline))] bg-[hsl(var(--surface-low))] text-[hsl(var(--on-surface-variant))]',
                             needsReview &&
                               'border-l-4 border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/25',
                           )}
@@ -198,12 +223,18 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             {transaction.date}
                           </td>
                           <td className="p-4">
-                            <Link
-                              href={`/transactions/${transaction.id}`}
-                              className="font-medium hover:underline"
-                            >
-                              {transaction.description}
-                            </Link>
+                            {isDuplicate ? (
+                              <span className="font-medium">
+                                {transaction.description}
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/transactions/${transaction.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {transaction.description}
+                              </Link>
+                            )}
                           </td>
                           <td className="p-4 text-right font-mono font-medium">
                             {formatSignedCurrency(transaction.amount)}
@@ -230,7 +261,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                     event.target.value,
                                   )
                                 }
-                                disabled={isConfirmed}
+                                disabled={isResolved || isDuplicate}
                               >
                                 {categories.map((category) => (
                                   <option key={category} value={category}>
@@ -246,22 +277,30 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             </p>
                           </td>
                           <td className="p-4">
-                            <div className="flex min-w-28 items-center gap-3">
-                              <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full',
-                                    needsReview ? 'bg-amber-500' : 'bg-primary',
-                                  )}
-                                  style={{
-                                    inlineSize: `${transaction.confidence}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
-                                {transaction.confidence}%
+                            {isDuplicate ? (
+                              <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
+                                Skipped
                               </span>
-                            </div>
+                            ) : (
+                              <div className="flex min-w-28 items-center gap-3">
+                                <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
+                                  <div
+                                    className={cn(
+                                      'h-full rounded-full',
+                                      needsReview
+                                        ? 'bg-amber-500'
+                                        : 'bg-primary',
+                                    )}
+                                    style={{
+                                      inlineSize: `${transaction.confidence}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
+                                  {transaction.confidence}%
+                                </span>
+                              </div>
+                            )}
                           </td>
                           <td className="max-w-xs p-4 text-xs leading-5 text-[hsl(var(--on-surface-variant))]">
                             {transaction.aiReason ?? 'No reason returned.'}
@@ -272,7 +311,9 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
                                 isApproved
                                   ? 'bg-primary text-primary-foreground'
-                                  : 'bg-[hsl(var(--surface-high))]',
+                                  : isDuplicate
+                                    ? 'bg-[hsl(var(--surface-highest))]'
+                                    : 'bg-[hsl(var(--surface-high))]',
                               )}
                             >
                               {isApproved ? (
@@ -290,9 +331,11 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                   )}
                                 />
                               )}
-                              {needsReview && !isApproved
-                                ? 'Needs review'
-                                : transaction.status}
+                              {isDuplicate
+                                ? 'Duplicate'
+                                : needsReview && !isApproved
+                                  ? 'Needs review'
+                                  : transaction.status}
                             </span>
                           </td>
                         </tr>

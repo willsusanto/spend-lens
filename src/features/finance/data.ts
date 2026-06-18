@@ -1,6 +1,7 @@
-export type FinanceStatus = 'Pending' | 'Review' | 'Approved';
+export type FinanceStatus = 'Pending' | 'Review' | 'Approved' | 'Duplicate';
 export type TransactionStatus = FinanceStatus;
 export type CategorizationSource = 'ollama' | 'manual';
+export type TransactionDirection = 'CR' | 'DB';
 
 export type FinanceTransaction = {
   id: string;
@@ -10,6 +11,7 @@ export type FinanceTransaction = {
   category: string;
   confidence: number;
   status: TransactionStatus;
+  direction?: TransactionDirection;
   note?: string;
   aiReason?: string;
   categorizationSource?: CategorizationSource;
@@ -22,11 +24,16 @@ export type ImportBatch = {
   id: string;
   fileName: string;
   date: string;
+  duplicateRows?: number;
   rows: number;
   status: FinanceStatus;
 };
 
 export const normalizeFinanceStatus = (status: unknown): FinanceStatus => {
+  if (status === 'Duplicate') {
+    return 'Duplicate';
+  }
+
   if (status === 'Approved' || status === 'Confirmed' || status === 'Cleared') {
     return 'Approved';
   }

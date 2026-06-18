@@ -8,7 +8,12 @@ import { useRef } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import { FinanceStatus } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { cn } from '@/utils/cn';
+
+const getStatusDotClassName = (status: FinanceStatus) =>
+  status === 'Duplicate' ? 'bg-[hsl(var(--outline))]' : 'bg-primary';
 
 export const ImportsHistory = () => {
   const { activeImport, importCsv, imports, message } = useFinanceData();
@@ -83,10 +88,22 @@ export const ImportsHistory = () => {
                     <td className="p-4 text-[hsl(var(--on-surface-variant))]">
                       {item.date}
                     </td>
-                    <td className="p-4">{item.rows}</td>
+                    <td className="p-4">
+                      {item.rows}
+                      {item.duplicateRows ? (
+                        <span className="ml-2 text-xs text-[hsl(var(--on-surface-variant))]">
+                          {item.duplicateRows} duplicate
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="p-4">
                       <span className="inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-highest))] px-2 py-1 text-xs font-medium">
-                        <span className="size-2 rounded-full bg-primary" />
+                        <span
+                          className={cn(
+                            'size-2 rounded-full',
+                            getStatusDotClassName(item.status),
+                          )}
+                        />
                         {item.status}
                       </span>
                     </td>

@@ -9,6 +9,7 @@ import { MainErrorFallback } from '@/components/errors/main';
 import { Notifications } from '@/components/ui/notifications';
 import { getDefaultFinanceStore } from '@/features/finance/finance-store';
 import { FinanceDataProvider } from '@/features/finance/use-finance-data';
+import { FinanceSettingsProvider } from '@/features/finance/use-finance-settings';
 import { queryConfig } from '@/lib/react-query';
 
 type AppProviderProps = {
@@ -29,9 +30,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       <QueryClientProvider client={queryClient}>
         {process.env.DEV && <ReactQueryDevtools />}
         <Notifications />
-        <FinanceDataProvider store={financeStore}>
-          {children}
-        </FinanceDataProvider>
+        <FinanceSettingsProvider>
+          <FinanceDataProvider store={financeStore}>
+            {children}
+          </FinanceDataProvider>
+        </FinanceSettingsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

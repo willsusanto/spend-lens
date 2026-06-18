@@ -6,12 +6,22 @@ import {
   FinanceStatus,
   FinanceTransaction,
   TransactionStatus,
-  categories,
+  categories as seedCategories,
 } from '@/features/finance/data';
+import {
+  normalizeCategories,
+  normalizeOllamaEndpoint,
+  normalizeOllamaModel,
+} from '@/features/finance/finance-settings';
 
 export const runtime = 'nodejs';
 
 type CategorizeRequest = {
+  settings?: {
+    categories?: unknown;
+    ollamaEndpoint?: unknown;
+    ollamaModel?: unknown;
+  };
   transactions?: FinanceTransaction[];
 };
 
@@ -194,7 +204,10 @@ const applyFallback = (
     aiReason: `AI categorization could not be applied, so this row needs manual review. ${detail}`,
   }));
 
-const buildPrompt = (transactions: FinanceTransaction[]) => `
+const buildPrompt = (
+  transactions: FinanceTransaction[],
+  categories: string[],
+) => `
 You are a JSON-only transaction categorizer for a finance app.
 
 Your entire response must be one valid JSON object. It must start with { and end with }.
@@ -278,10 +291,11 @@ const getInstalledModel = async (endpoint: string) => {
 const generateCategories = async (
   endpoint: string,
   model: string,
+  allowedCategories: string[],
   transactions: FinanceTransaction[],
   format: OllamaGenerateFormat = 'json',
 ) => {
-  const prompt = buildPrompt(transactions);
+  const prompt = buildPrompt(transactions, allowedCategories);
   const formatName = getFormatName(format);
 
   logOllama('Generating categories', {
@@ -350,7 +364,13 @@ const generateCategories = async (
       transactionCount: transactions.length,
     });
 
-    return generateCategories(endpoint, model, transactions, 'json');
+    return generateCategories(
+      endpoint,
+      model,
+      allowedCategories,
+      transactions,
+      'json',
+    );
   }
 
   return payload;
@@ -375,8 +395,18 @@ export async function POST(request: Request) {
     } satisfies CategorizeResponse);
   }
 
-  const endpoint = env.OLLAMA_ENDPOINT.replace(/\/$/, '');
-  const model = env.OLLAMA_MODEL;
+  const requestSettings = isObjectRecord(body.settings) ? body.settings : {};
+  const allowedCategories = normalizeCategories(
+    requestSettings.categories ?? seedCategories,
+  );
+  const endpoint = normalizeOllamaEndpoint(
+    requestSettings.ollamaEndpoint,
+    env.OLLAMA_ENDPOINT,
+  );
+  const model = normalizeOllamaModel(
+    requestSettings.ollamaModel,
+    env.OLLAMA_MODEL,
+  );
 
   logOllama('Categorization request received', {
     endpoint,
@@ -389,7 +419,12 @@ export async function POST(request: Request) {
     let payload: OllamaGenerateResponse;
 
     try {
-      payload = await generateCategories(endpoint, activeModel, transactions);
+      payload = await generateCategories(
+        endpoint,
+        activeModel,
+        allowedCategories,
+        transactions,
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : '';
 
@@ -409,7 +444,12 @@ export async function POST(request: Request) {
       }
 
       activeModel = installedModel;
-      payload = await generateCategories(endpoint, activeModel, transactions);
+      payload = await generateCategories(
+        endpoint,
+        activeModel,
+        allowedCategories,
+        transactions,
+      );
     }
 
     let categorized: OllamaCategorizedResponse;
@@ -456,9 +496,7 @@ export async function POST(request: Request) {
       }
 
       const confidence = clampConfidence(result.confidence);
-      const category = categories.includes(
-        result.category as (typeof categories)[number],
-      )
+      const category = allowedCategories.includes(result.category)
         ? result.category
         : 'Uncategorized';
       const resolvedCategory =

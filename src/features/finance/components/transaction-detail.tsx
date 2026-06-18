@@ -8,8 +8,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { categories, formatSignedCurrency } from '@/features/finance/data';
+import { formatSignedCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
 
 export const TransactionDetail = ({
@@ -25,6 +26,7 @@ export const TransactionDetail = ({
     saveTransactionDetails,
     transactions,
   } = useFinanceData();
+  const { categories } = useFinanceSettings();
   const transaction = transactions.find((item) => item.id === transactionId);
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');

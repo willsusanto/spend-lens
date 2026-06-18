@@ -5,6 +5,7 @@ import {
   seedImports,
   seedTransactions,
 } from '@/features/finance/data';
+import { normalizeTransactionDirection } from '@/features/finance/duplicate-transactions';
 
 export type FinanceStoreSnapshot = {
   imports: ImportBatch[];
@@ -55,6 +56,10 @@ const normalizeTransactions = (
   transactions.map(({ merchant, ...transaction }) => ({
     ...transaction,
     description: transaction.description?.trim() || merchant || '',
+    direction: normalizeTransactionDirection(
+      transaction.direction,
+      transaction.amount,
+    ),
     status: normalizeFinanceStatus(transaction.status),
   }));
 

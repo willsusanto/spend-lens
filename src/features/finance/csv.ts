@@ -1,4 +1,5 @@
 import { FinanceTransaction, ImportBatch } from './data';
+import { normalizeTransactionDirection } from './duplicate-transactions';
 
 type CsvRow = Record<string, string>;
 
@@ -176,13 +177,24 @@ export const parseTransactionsCsv = (
     const direction =
       directionIndex >= 0
         ? row[`column${directionIndex}`]?.trim().toUpperCase()
-        : '';
+        : pick(row, ['cr/db', 'crdb', 'direction', 'type']).toUpperCase();
+    const debitAmount = parseAmount(pick(row, ['debit']));
+    const creditAmount = parseAmount(pick(row, ['credit']));
     const rawAmount =
       parseAmount(pick(row, ['amount', 'transaction amount'])) ||
       parseAmount(pick(row, ['jumlah'])) ||
-      parseAmount(pick(row, ['credit'])) -
-        Math.abs(parseAmount(pick(row, ['debit'])));
-    const amount = direction === 'DB' ? -Math.abs(rawAmount) : rawAmount;
+      creditAmount - Math.abs(debitAmount);
+    const normalizedDirection =
+      direction === 'CR' || direction === 'DB'
+        ? direction
+        : normalizeTransactionDirection(
+            undefined,
+            debitAmount > 0 && creditAmount === 0
+              ? -Math.abs(rawAmount)
+              : rawAmount,
+          );
+    const amount =
+      normalizedDirection === 'DB' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
 
     return {
       id: `${importId}-${index}`,
@@ -194,6 +206,7 @@ export const parseTransactionsCsv = (
       amount,
       category: 'Uncategorized',
       confidence: 31,
+      direction: normalizedDirection,
       status: 'Review' as const,
       aiReason: 'Waiting for AI categorization.',
       importId,

@@ -19,7 +19,13 @@ import {
   seedImports,
   seedTransactions,
 } from './data';
+import {
+  isDuplicateTransaction,
+  isSaveableTransaction,
+  markDuplicateTransactions,
+} from './duplicate-transactions';
 import { FinanceStore, localStorageFinanceStore } from './finance-store';
+import { useFinanceSettings } from './use-finance-settings';
 
 const categorizationTimeoutMs = 1200_000;
 const categorizationChunkSize = 1;
@@ -128,16 +134,25 @@ const chunkTransactions = (transactions: FinanceTransaction[]) => {
 };
 
 const isTransactionCategorized = (transaction: FinanceTransaction) =>
+  !isDuplicateTransaction(transaction) &&
   transaction.category !== 'Uncategorized' &&
   transaction.status !== 'Review' &&
   transaction.confidence >= 70;
 
 const getImportBatchStatus = (
   transactions: FinanceTransaction[],
-): FinanceStatus =>
-  transactions.length > 0 && transactions.every(isTransactionCategorized)
+): FinanceStatus => {
+  if (transactions.length > 0 && transactions.every(isDuplicateTransaction)) {
+    return 'Duplicate';
+  }
+
+  const saveableTransactions = transactions.filter(isSaveableTransaction);
+
+  return saveableTransactions.length > 0 &&
+    saveableTransactions.every(isTransactionCategorized)
     ? 'Pending'
     : 'Review';
+};
 
 const getImportIdTimestamp = (importId: string) => {
   const timestamp = Number(importId.replace(/^import-/, ''));
@@ -190,6 +205,7 @@ const ensureImportsForStagedTransactions = (
     .filter(([importId]) => !existingImportIds.has(importId))
     .map(([importId, transactions]) => ({
       id: importId,
+      duplicateRows: transactions.filter(isDuplicateTransaction).length,
       fileName: transactions[0]?.sourceFile ?? 'Restored CSV import',
       date: getImportDateFromId(importId),
       rows: transactions.length,
@@ -213,7 +229,8 @@ const restoreActiveImportFromStaged = (
     ) ??
     Array.from(transactionsByImportId.keys())
       .toSorted(
-        (left, right) => getImportIdTimestamp(right) - getImportIdTimestamp(left),
+        (left, right) =>
+          getImportIdTimestamp(right) - getImportIdTimestamp(left),
       )
       .map((importId) => imports.find((item) => item.id === importId))
       .find((item): item is ImportBatch => Boolean(item));
@@ -269,6 +286,7 @@ export const FinanceDataProvider = ({
   children: ReactNode;
   store?: FinanceStore;
 }) => {
+  const { categories, ollamaEndpoint, ollamaModel } = useFinanceSettings();
   const [transactions, setTransactions] =
     useState<FinanceTransaction[]>(seedTransactions);
   const [stagedTransactions, setStagedTransactions] = useState<
@@ -651,167 +669,197 @@ export const FinanceDataProvider = ({
     };
   }, [stagedImportSyncStatuses]);
 
-  const importCsv = useCallback(async (file: File) => {
-    if (isProcessingRef.current) {
-      const detail =
-        'An import is already processing. Wait until it finishes before uploading another CSV.';
+  const importCsv = useCallback(
+    async (file: File) => {
+      if (isProcessingRef.current) {
+        const detail =
+          'An import is already processing. Wait until it finishes before uploading another CSV.';
 
-      setMessage(detail);
-      setActiveImport((current) => ({
-        ...current,
-        message: detail,
-      }));
-
-      return null;
-    }
-
-    isProcessingRef.current = true;
-    try {
-      const text = await file.text();
-      const parsed = parseTransactionsCsv(text, file.name);
-      const startMessage = `Processing ${parsed.transactions.length} rows from ${file.name}.`;
-
-      setMessage(startMessage);
-      setActiveImport({
-        activeImportId: parsed.batch.id,
-        fileName: file.name,
-        finalBatchStatus: null,
-        isComplete: false,
-        isProcessing: true,
-        message: startMessage,
-        processedRows: 0,
-        processedTransactions: [],
-        totalRows: parsed.transactions.length,
-      });
-
-      const processedTransactionsById = new Map<string, FinanceTransaction>();
-
-      const recordProcessedTransaction = (transaction: FinanceTransaction) => {
-        processedTransactionsById.set(transaction.id, transaction);
-        setStagedTransactions((current) => [transaction, ...current]);
+        setMessage(detail);
         setActiveImport((current) => ({
           ...current,
-          processedRows: current.processedRows + 1,
-          processedTransactions: [
-            transaction,
-            ...current.processedTransactions,
-          ],
-        }));
-      };
-
-      const chunks = chunkTransactions(parsed.transactions);
-      const categorizedChunks: CategorizeResponse[] = [];
-
-      for (const [index, transactionsChunk] of chunks.entries()) {
-        const chunkNumber = index + 1;
-        const chunkMessage = `Categorizing rows with Ollama. Chunk ${chunkNumber} of ${chunks.length}.`;
-
-        setMessage(chunkMessage);
-        setActiveImport((current) => ({
-          ...current,
-          message: chunkMessage,
+          message: detail,
         }));
 
-        const controller = new AbortController();
-        const timeout = window.setTimeout(
-          () => controller.abort(),
-          categorizationTimeoutMs,
-        );
-
-        try {
-          const response = await fetch('/api/categorize', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ transactions: transactionsChunk }),
-            signal: controller.signal,
-          });
-
-          if (!response.ok) {
-            throw new Error(`Categorization failed with ${response.status}.`);
-          }
-
-          const result = (await response.json()) as CategorizeResponse;
-          categorizedChunks.push(result);
-          result.transactions.forEach(recordProcessedTransaction);
-        } catch (error) {
-          const detail =
-            error instanceof DOMException && error.name === 'AbortError'
-              ? `Ollama took longer than ${
-                  categorizationTimeoutMs / 1000
-                } seconds for chunk ${chunkNumber}.`
-              : error instanceof Error
-                ? error.message
-                : 'Unknown error.';
-
-          const fallbackResult: CategorizeResponse = {
-            transactions: transactionsChunk.map((transaction) => ({
-              ...transaction,
-              confidence: Math.min(transaction.confidence, 31),
-              status: 'Review',
-              aiReason: `AI categorization could not run. ${detail}`,
-            })),
-            source: 'manual-review',
-            status: 'Review',
-            error: detail,
-          };
-
-          categorizedChunks.push(fallbackResult);
-          fallbackResult.transactions.forEach(recordProcessedTransaction);
-        } finally {
-          window.clearTimeout(timeout);
-        }
+        return null;
       }
 
-      const mergedTransactions = parsed.transactions.map(
-        (transaction) =>
-          processedTransactionsById.get(transaction.id) ?? transaction,
-      );
-      const categorizedStatus = getImportBatchStatus(mergedTransactions);
+      isProcessingRef.current = true;
+      try {
+        const text = await file.text();
+        const parsed = parseTransactionsCsv(text, file.name);
+        const duplicateCheckedTransactions = markDuplicateTransactions(
+          parsed.transactions,
+          [...transactions, ...stagedTransactions],
+        );
+        const duplicateTransactions = duplicateCheckedTransactions.filter(
+          isDuplicateTransaction,
+        );
+        const transactionsForCategorization =
+          duplicateCheckedTransactions.filter(isSaveableTransaction);
+        const startMessage = `Processing ${parsed.transactions.length} rows from ${file.name}.`;
 
-      const batch = {
-        ...parsed.batch,
-        status: categorizedStatus,
-      };
+        setMessage(startMessage);
+        setActiveImport({
+          activeImportId: parsed.batch.id,
+          fileName: file.name,
+          finalBatchStatus: null,
+          isComplete: false,
+          isProcessing: true,
+          message: startMessage,
+          processedRows: 0,
+          processedTransactions: [],
+          totalRows: parsed.transactions.length,
+        });
 
-      setImports((current) => [batch, ...current]);
-      const doneMessage = `Imported ${mergedTransactions.length} transactions from ${file.name}. ${categorizedStatus}.`;
+        const processedTransactionsById = new Map<string, FinanceTransaction>();
 
-      setMessage(doneMessage);
-      setActiveImport((current) => ({
-        ...current,
-        finalBatchStatus: categorizedStatus,
-        isComplete: true,
-        isProcessing: false,
-        message: doneMessage,
-      }));
+        const recordProcessedTransaction = (
+          transaction: FinanceTransaction,
+        ) => {
+          processedTransactionsById.set(transaction.id, transaction);
+          setStagedTransactions((current) => [transaction, ...current]);
+          setActiveImport((current) => ({
+            ...current,
+            processedRows: current.processedRows + 1,
+            processedTransactions: [
+              transaction,
+              ...current.processedTransactions,
+            ],
+          }));
+        };
 
-      return {
-        batch,
-        transactions: mergedTransactions,
-      } satisfies ImportCsvResult;
-    } catch (error) {
-      const detail =
-        error instanceof Error
-          ? error.message
-          : 'CSV import failed for an unknown reason.';
-      const failedMessage = `Import failed. ${detail}`;
+        duplicateTransactions.forEach(recordProcessedTransaction);
 
-      setMessage(failedMessage);
-      setActiveImport((current) => ({
-        ...current,
-        finalBatchStatus: 'Review',
-        isComplete: false,
-        isProcessing: false,
-        message: failedMessage,
-      }));
+        const chunks = chunkTransactions(transactionsForCategorization);
+        const categorizedChunks: CategorizeResponse[] = [];
 
-      return null;
-    } finally {
-      isProcessingRef.current = false;
-    }
-  }, []);
+        for (const [index, transactionsChunk] of chunks.entries()) {
+          const chunkNumber = index + 1;
+          const chunkMessage = `Categorizing rows with Ollama. Chunk ${chunkNumber} of ${chunks.length}.`;
+
+          setMessage(chunkMessage);
+          setActiveImport((current) => ({
+            ...current,
+            message: chunkMessage,
+          }));
+
+          const controller = new AbortController();
+          const timeout = window.setTimeout(
+            () => controller.abort(),
+            categorizationTimeoutMs,
+          );
+
+          try {
+            const response = await fetch('/api/categorize', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                settings: {
+                  categories,
+                  ollamaEndpoint,
+                  ollamaModel,
+                },
+                transactions: transactionsChunk,
+              }),
+              signal: controller.signal,
+            });
+
+            if (!response.ok) {
+              throw new Error(`Categorization failed with ${response.status}.`);
+            }
+
+            const result = (await response.json()) as CategorizeResponse;
+            categorizedChunks.push(result);
+            result.transactions.forEach(recordProcessedTransaction);
+          } catch (error) {
+            const detail =
+              error instanceof DOMException && error.name === 'AbortError'
+                ? `Ollama took longer than ${
+                    categorizationTimeoutMs / 1000
+                  } seconds for chunk ${chunkNumber}.`
+                : error instanceof Error
+                  ? error.message
+                  : 'Unknown error.';
+
+            const fallbackResult: CategorizeResponse = {
+              transactions: transactionsChunk.map((transaction) => ({
+                ...transaction,
+                confidence: Math.min(transaction.confidence, 31),
+                status: 'Review',
+                aiReason: `AI categorization could not run. ${detail}`,
+              })),
+              source: 'manual-review',
+              status: 'Review',
+              error: detail,
+            };
+
+            categorizedChunks.push(fallbackResult);
+            fallbackResult.transactions.forEach(recordProcessedTransaction);
+          } finally {
+            window.clearTimeout(timeout);
+          }
+        }
+
+        const mergedTransactions = duplicateCheckedTransactions.map(
+          (transaction) =>
+            processedTransactionsById.get(transaction.id) ?? transaction,
+        );
+        const categorizedStatus = getImportBatchStatus(mergedTransactions);
+
+        const batch = {
+          ...parsed.batch,
+          duplicateRows: duplicateTransactions.length,
+          status: categorizedStatus,
+        };
+
+        setImports((current) => [batch, ...current]);
+        const duplicateMessage =
+          duplicateTransactions.length > 0
+            ? ` ${duplicateTransactions.length} duplicate row${
+                duplicateTransactions.length === 1 ? '' : 's'
+              } skipped.`
+            : '';
+        const doneMessage = `Imported ${mergedTransactions.length} transactions from ${file.name}. ${categorizedStatus}.${duplicateMessage}`;
+
+        setMessage(doneMessage);
+        setActiveImport((current) => ({
+          ...current,
+          finalBatchStatus: categorizedStatus,
+          isComplete: true,
+          isProcessing: false,
+          message: doneMessage,
+        }));
+
+        return {
+          batch,
+          transactions: mergedTransactions,
+        } satisfies ImportCsvResult;
+      } catch (error) {
+        const detail =
+          error instanceof Error
+            ? error.message
+            : 'CSV import failed for an unknown reason.';
+        const failedMessage = `Import failed. ${detail}`;
+
+        setMessage(failedMessage);
+        setActiveImport((current) => ({
+          ...current,
+          finalBatchStatus: 'Review',
+          isComplete: false,
+          isProcessing: false,
+          message: failedMessage,
+        }));
+
+        return null;
+      } finally {
+        isProcessingRef.current = false;
+      }
+    },
+    [categories, ollamaEndpoint, ollamaModel, stagedTransactions, transactions],
+  );
 
   const approveTransaction = useCallback((id: string) => {
     setTransactions((current) =>
@@ -848,7 +896,9 @@ export const FinanceDataProvider = ({
 
       return next;
     });
-    setMessage(`Deleted ${ids.length} transaction${ids.length === 1 ? '' : 's'}.`);
+    setMessage(
+      `Deleted ${ids.length} transaction${ids.length === 1 ? '' : 's'}.`,
+    );
   }, []);
 
   const addTransaction = useCallback((input: ManualTransactionInput) => {
@@ -860,6 +910,7 @@ export const FinanceDataProvider = ({
       amount: input.amount,
       category: input.category,
       confidence: 100,
+      direction: input.amount < 0 ? 'DB' : 'CR',
       status: 'Approved',
       categorizationSource: 'manual',
     };
@@ -978,61 +1029,101 @@ export const FinanceDataProvider = ({
     [],
   );
 
-  const confirmImport = useCallback((importId: string) => {
-    const stagedForImport = stagedTransactions.filter(
-      (transaction) => transaction.importId === importId,
-    );
-    const allCategorized =
-      stagedForImport.length > 0 &&
-      stagedForImport.every(isTransactionCategorized);
+  const confirmImport = useCallback(
+    (importId: string) => {
+      const stagedForImport = stagedTransactions.filter(
+        (transaction) => transaction.importId === importId,
+      );
+      const duplicateTransactions = stagedForImport.filter(
+        isDuplicateTransaction,
+      );
+      const saveableTransactions = stagedForImport.filter(
+        isSaveableTransaction,
+      );
+      const allCategorized =
+        saveableTransactions.length > 0 &&
+        saveableTransactions.every(isTransactionCategorized);
 
-    if (!allCategorized) {
-      setMessage('Categorize every imported transaction before confirming.');
+      if (saveableTransactions.length > 0 && !allCategorized) {
+        setMessage('Categorize every imported transaction before confirming.');
 
-      return;
-    }
+        return;
+      }
 
-    const confirmedTransactions = stagedForImport.map((transaction) => ({
-      ...transaction,
-      status: 'Approved' as const,
-    }));
+      if (
+        saveableTransactions.length === 0 &&
+        duplicateTransactions.length === 0
+      ) {
+        setMessage('No imported transactions are available to confirm.');
 
-    setTransactions((current) => [...confirmedTransactions, ...current]);
-    setStagedTransactions((current) =>
-      current.filter((transaction) => transaction.importId !== importId),
-    );
-    setDraftStagedTransactionCategories((current) => {
-      const next = { ...current };
+        return;
+      }
 
-      stagedForImport.forEach((transaction) => {
-        delete next[transaction.id];
+      const confirmedTransactions = saveableTransactions.map((transaction) => ({
+        ...transaction,
+        status: 'Approved' as const,
+      }));
+      const finalStatus: FinanceStatus =
+        confirmedTransactions.length > 0 ? 'Approved' : 'Duplicate';
+      const finalMessage =
+        confirmedTransactions.length > 0
+          ? `Import confirmed and categories saved locally.${
+              duplicateTransactions.length > 0
+                ? ` ${duplicateTransactions.length} duplicate row${
+                    duplicateTransactions.length === 1 ? '' : 's'
+                  } skipped.`
+                : ''
+            }`
+          : `Skipped ${duplicateTransactions.length} duplicate row${
+              duplicateTransactions.length === 1 ? '' : 's'
+            }. No transactions were added.`;
+
+      if (confirmedTransactions.length > 0) {
+        setTransactions((current) => [...confirmedTransactions, ...current]);
+      }
+      setStagedTransactions((current) =>
+        current.filter((transaction) => transaction.importId !== importId),
+      );
+      setDraftStagedTransactionCategories((current) => {
+        const next = { ...current };
+
+        stagedForImport.forEach((transaction) => {
+          delete next[transaction.id];
+        });
+
+        return next;
       });
+      setStagedImportSyncStatuses((current) => {
+        const next = { ...current };
 
-      return next;
-    });
-    setStagedImportSyncStatuses((current) => {
-      const next = { ...current };
+        delete next[importId];
 
-      delete next[importId];
-
-      return next;
-    });
-    setImports((current) =>
-      current.map((item) =>
-        item.id === importId ? { ...item, status: 'Approved' } : item,
-      ),
-    );
-    setActiveImport((current) =>
-      current.activeImportId === importId
-        ? {
-            ...current,
-            finalBatchStatus: 'Approved',
-            message: 'Import confirmed and categories saved locally.',
-          }
-        : current,
-    );
-    setMessage('Import confirmed and categories saved locally.');
-  }, [stagedTransactions]);
+        return next;
+      });
+      setImports((current) =>
+        current.map((item) =>
+          item.id === importId
+            ? {
+                ...item,
+                duplicateRows: duplicateTransactions.length,
+                status: finalStatus,
+              }
+            : item,
+        ),
+      );
+      setActiveImport((current) =>
+        current.activeImportId === importId
+          ? {
+              ...current,
+              finalBatchStatus: finalStatus,
+              message: finalMessage,
+            }
+          : current,
+      );
+      setMessage(finalMessage);
+    },
+    [stagedTransactions],
+  );
 
   const stats = useMemo(() => {
     const spending = transactions

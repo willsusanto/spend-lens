@@ -23,20 +23,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import {
-  categories,
-  pageSizeOptions,
-  formatSignedCurrency,
-} from '@/features/finance/data';
+import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
+import { uncategorizedCategory } from '@/features/finance/finance-settings';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
 
 type DateRange = 'all' | '30' | '90';
 type SortKey = 'newest' | 'oldest' | 'amount-high' | 'amount-low';
-
-const transactionCategories = categories.filter(
-  (category) => category !== 'Uncategorized',
-);
 
 const getTimestamp = (date: string) => {
   const parsed = new Date(date).getTime();
@@ -63,6 +57,7 @@ export const TransactionsReview = () => {
     transactions,
     updateTransactionCategory,
   } = useFinanceData();
+  const { categories } = useFinanceSettings();
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [dateRange, setDateRange] = useState<DateRange>('30');
@@ -76,10 +71,20 @@ export const TransactionsReview = () => {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<
     string[]
   >([]);
+  const transactionCategories = useMemo(
+    () => categories.filter((category) => category !== uncategorizedCategory),
+    [categories],
+  );
 
   useEffect(() => {
     setPage(1);
   }, [categoryFilter, dateRange, pageSize, query, sortKey]);
+
+  useEffect(() => {
+    if (categoryFilter !== 'All' && !categories.includes(categoryFilter)) {
+      setCategoryFilter('All');
+    }
+  }, [categories, categoryFilter]);
 
   const filteredTransactions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
