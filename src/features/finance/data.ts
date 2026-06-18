@@ -196,3 +196,5 @@ export const categories = [
   'Misc',
   'Uncategorized',
 ];
+
+export const pageSizeOptions = [3, 5, 10, 30, 60];

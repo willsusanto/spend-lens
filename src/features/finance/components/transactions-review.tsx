@@ -23,14 +23,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { categories, formatSignedCurrency } from '@/features/finance/data';
+import {
+  categories,
+  pageSizeOptions,
+  formatSignedCurrency,
+} from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
 type DateRange = 'all' | '30' | '90';
 type SortKey = 'newest' | 'oldest' | 'amount-high' | 'amount-low';
 
-const pageSizeOptions = [10, 30, 60] as const;
 const transactionCategories = categories.filter(
   (category) => category !== 'Uncategorized',
 );

@@ -13,11 +13,13 @@ import { DragEvent, useEffect, useRef, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { categories, formatSignedCurrency } from '@/features/finance/data';
+import {
+  categories,
+  formatSignedCurrency,
+  pageSizeOptions,
+} from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
-
-const pageSizeOptions = [10, 30, 60] as const;
 
 export const HomeDashboard = () => {
   const {
