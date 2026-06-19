@@ -1,4 +1,4 @@
-# LedgerLocal
+# SpendLens
 
 Local-first personal finance cleanup built with Next.js, React, TypeScript, and
 Tailwind CSS.

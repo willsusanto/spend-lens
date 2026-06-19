@@ -17,7 +17,7 @@ const themeScript = `
 `;
 
 export const metadata = {
-  title: 'LedgerLocal',
+  title: 'SpendLens',
   description: 'Local-first personal finance cleanup.',
 };
 

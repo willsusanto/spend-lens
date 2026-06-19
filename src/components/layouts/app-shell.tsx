@@ -31,7 +31,7 @@ export const AppShell = ({
     <div className="fixed inset-0 flex h-dvh flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
       <header className="z-20 grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 sm:px-6">
         <Link href="/" className="text-base font-bold leading-5">
-          LedgerLocal
+          SpendLens
         </Link>
 
         <nav className="min-w-0" aria-label="Primary">
