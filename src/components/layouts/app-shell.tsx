@@ -1,6 +1,6 @@
 'use client';
 
-import { Cloud, Home, List, Settings } from 'lucide-react';
+import { ChartPie, Cloud, Home, List, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn';
 const navigation = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/transactions', label: 'Transactions', icon: List },
+  { href: '/statistics', label: 'Statistics', icon: ChartPie },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
