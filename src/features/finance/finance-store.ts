@@ -20,26 +20,60 @@ export type FinanceStore = {
   saveTransactions: (transactions: FinanceTransaction[]) => Promise<void>;
 };
 
-const transactionsKey = 'ledgerlocal.transactions';
-const stagedTransactionsKey = 'ledgerlocal.staged-transactions';
-const importsKey = 'ledgerlocal.imports';
+type StorageKey = {
+  current: string;
+  legacy: readonly string[];
+};
 
-const readStored = <T>(key: string, fallback: T) => {
+const transactionsKey: StorageKey = {
+  current: 'spendlens.transactions',
+  legacy: ['ledgerlocal.transactions'],
+};
+const stagedTransactionsKey: StorageKey = {
+  current: 'spendlens.staged-transactions',
+  legacy: ['ledgerlocal.staged-transactions'],
+};
+const importsKey: StorageKey = {
+  current: 'spendlens.imports',
+  legacy: ['ledgerlocal.imports'],
+};
+
+const parseStored = <T>(value: string | null) => {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return (JSON.parse(value) as T | null) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const readStored = <T>(key: StorageKey, fallback: T) => {
   if (typeof window === 'undefined') {
     return fallback;
   }
 
-  const value = window.localStorage.getItem(key);
+  const value = window.localStorage.getItem(key.current);
+  const parsedValue = parseStored<T>(value);
 
-  if (!value) {
-    return fallback;
+  if (parsedValue !== undefined) {
+    return parsedValue;
   }
 
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
+  for (const legacyKey of key.legacy) {
+    const legacyValue = window.localStorage.getItem(legacyKey);
+    const parsedLegacyValue = parseStored<T>(legacyValue);
+
+    if (parsedLegacyValue !== undefined && legacyValue) {
+      window.localStorage.setItem(key.current, legacyValue);
+
+      return parsedLegacyValue;
+    }
   }
+
+  return fallback;
 };
 
 type StoredTransaction = FinanceTransaction & {
@@ -89,12 +123,12 @@ export const normalizeFinanceStoreSnapshot = (
   ),
 });
 
-const writeStored = async <T>(key: string, value: T) => {
+const writeStored = async <T>(key: StorageKey, value: T) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
+  window.localStorage.setItem(key.current, JSON.stringify(value));
 };
 
 export const localStorageFinanceStore: FinanceStore = {

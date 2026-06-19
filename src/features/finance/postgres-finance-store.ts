@@ -16,7 +16,8 @@ type FinanceStoreRow = {
   value: unknown;
 };
 
-const tableName = 'ledgerlocal_finance_state';
+const tableName = 'spendlens_finance_state';
+const legacyTableName = 'ledgerlocal_finance_state';
 const stateKeys = [
   'imports',
   'stagedTransactions',
@@ -84,6 +85,18 @@ const ensureSchema = async () => {
       value jsonb NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `);
+
+  await getPool().query(`
+    DO $$
+    BEGIN
+      IF to_regclass('${legacyTableName}') IS NOT NULL THEN
+        INSERT INTO ${tableName} (key, value, updated_at)
+        SELECT key, value, updated_at
+        FROM ${legacyTableName}
+        ON CONFLICT (key) DO NOTHING;
+      END IF;
+    END $$;
   `);
 
   schemaReady = true;

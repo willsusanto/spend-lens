@@ -20,7 +20,10 @@ import {
   uncategorizedCategory,
 } from '@/features/finance/finance-settings';
 
-const settingsStorageKey = 'ledgerlocal.settings';
+const settingsStorageKey = {
+  current: 'spendlens.settings',
+  legacy: ['ledgerlocal.settings'],
+};
 
 type OllamaSettingsInput = {
   ollamaEndpoint: string;
@@ -43,17 +46,37 @@ const readStoredSettings = () => {
     return defaultFinanceSettings;
   }
 
-  const value = window.localStorage.getItem(settingsStorageKey);
+  const readSettingsValue = (value: string | null) => {
+    if (!value) {
+      return undefined;
+    }
 
-  if (!value) {
-    return defaultFinanceSettings;
+    try {
+      return normalizeFinanceSettings(JSON.parse(value));
+    } catch {
+      return undefined;
+    }
+  };
+
+  const value = window.localStorage.getItem(settingsStorageKey.current);
+  const settings = readSettingsValue(value);
+
+  if (settings !== undefined) {
+    return settings;
   }
 
-  try {
-    return normalizeFinanceSettings(JSON.parse(value));
-  } catch {
-    return defaultFinanceSettings;
+  for (const legacyKey of settingsStorageKey.legacy) {
+    const legacyValue = window.localStorage.getItem(legacyKey);
+    const legacySettings = readSettingsValue(legacyValue);
+
+    if (legacySettings !== undefined && legacyValue) {
+      window.localStorage.setItem(settingsStorageKey.current, legacyValue);
+
+      return legacySettings;
+    }
   }
+
+  return defaultFinanceSettings;
 };
 
 const writeStoredSettings = (settings: FinanceSettings) => {
@@ -61,7 +84,10 @@ const writeStoredSettings = (settings: FinanceSettings) => {
     return;
   }
 
-  window.localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
+  window.localStorage.setItem(
+    settingsStorageKey.current,
+    JSON.stringify(settings),
+  );
 };
 
 export const FinanceSettingsProvider = ({
