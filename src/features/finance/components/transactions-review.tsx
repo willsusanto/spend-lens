@@ -66,6 +66,9 @@ export const TransactionsReview = () => {
   const [pageSize, setPageSize] =
     useState<(typeof pageSizeOptions)[number]>(10);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [manualTransactionMessage, setManualTransactionMessage] = useState<
+    string | null
+  >(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<
@@ -205,12 +208,18 @@ export const TransactionsReview = () => {
     const amount = Number(data.get('amount'));
     const type = data.get('type');
 
-    addTransaction({
+    const result = addTransaction({
       date: String(data.get('date')),
       description: String(data.get('details')),
       category: String(data.get('category')),
       amount: type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
     });
+
+    setManualTransactionMessage(result.message);
+
+    if (result.status === 'duplicate') {
+      return;
+    }
 
     event.currentTarget.reset();
     setDialogOpen(false);
@@ -233,7 +242,16 @@ export const TransactionsReview = () => {
                 <Trash2 className="size-4" aria-hidden="true" />
                 Delete Selected
               </button>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <Dialog
+                open={dialogOpen}
+                onOpenChange={(open) => {
+                  setDialogOpen(open);
+
+                  if (!open) {
+                    setManualTransactionMessage(null);
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
                   <button
                     type="button"
@@ -313,6 +331,18 @@ export const TransactionsReview = () => {
                         </select>
                       </label>
                     </div>
+                    {manualTransactionMessage ? (
+                      <p
+                        aria-live="polite"
+                        className={cn(
+                          'rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-3 py-2 text-sm text-[hsl(var(--on-surface-variant))]',
+                          manualTransactionMessage.startsWith('Duplicate') &&
+                            'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
+                        )}
+                      >
+                        {manualTransactionMessage}
+                      </p>
+                    ) : null}
                   </form>
                   <DialogFooter>
                     <DialogClose asChild>

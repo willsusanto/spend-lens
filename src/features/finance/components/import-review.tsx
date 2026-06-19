@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronLeft, ListChecks } from 'lucide-react';
+import { Check, ChevronLeft, ListChecks, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 
@@ -20,6 +20,7 @@ import { cn } from '@/utils/cn';
 export const ImportReview = ({ importId }: { importId: string }) => {
   const {
     confirmImport,
+    deleteStagedTransactions,
     draftStagedTransactionCategories,
     hydrated,
     imports,
@@ -37,6 +38,11 @@ export const ImportReview = ({ importId }: { importId: string }) => {
       ),
     [importId, stagedTransactions],
   );
+  const stagedImportTransactionIds = useMemo(
+    () =>
+      new Set(stagedImportTransactions.map((transaction) => transaction.id)),
+    [stagedImportTransactions],
+  );
   const importedTransactions = useMemo(
     () =>
       stagedImportTransactions.length > 0
@@ -52,8 +58,12 @@ export const ImportReview = ({ importId }: { importId: string }) => {
   const saveableTransactions = importedTransactions.filter(
     isSaveableTransaction,
   );
+  const confirmRowsLabel = `Confirm ${saveableTransactions.length} ${
+    saveableTransactions.length === 1 ? 'Row' : 'Rows'
+  }`;
   const isResolved =
-    batch?.status === 'Approved' || batch?.status === 'Duplicate';
+    batch?.status === 'Approved' ||
+    (batch?.status === 'Duplicate' && stagedImportTransactions.length === 0);
   const hasUnsavedCategoryChanges = saveableTransactions.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
   );
@@ -138,10 +148,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                 onClick={() => confirmImport(importId)}
               >
                 <ListChecks className="size-4" aria-hidden="true" />
-                {saveableTransactions.length === 0 &&
-                duplicateTransactions.length > 0
-                  ? 'Dismiss Duplicates'
-                  : 'Confirm Import'}
+                {confirmRowsLabel}
               </button>
             </>
           }
@@ -183,7 +190,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
 
             <Panel clipped>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[74rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-[78rem] border-collapse text-left text-sm">
                   <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
                     <tr className="border-b border-[hsl(var(--outline-variant))]">
                       <th className="px-4 py-3">Date</th>
@@ -193,12 +200,16 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                       <th className="px-4 py-3">Confidence</th>
                       <th className="px-4 py-3">Reason</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
                     {importedTransactions.map((transaction) => {
                       const isDuplicate = isDuplicateTransaction(transaction);
                       const isApproved = transaction.status === 'Approved';
+                      const canDelete =
+                        stagedImportTransactionIds.has(transaction.id) &&
+                        !isResolved;
                       const category =
                         draftStagedTransactionCategories[transaction.id] ??
                         transaction.category;
@@ -337,6 +348,23 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                                   ? 'Needs review'
                                   : transaction.status}
                             </span>
+                          </td>
+                          <td className="p-4">
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                className="inline-flex min-h-8 items-center gap-1.5 rounded border border-[hsl(var(--outline-variant))] px-2 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                                onClick={() =>
+                                  deleteStagedTransactions([transaction.id])
+                                }
+                              >
+                                <Trash2
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                                Delete
+                              </button>
+                            ) : null}
                           </td>
                         </tr>
                       );

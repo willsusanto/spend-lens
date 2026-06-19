@@ -6,6 +6,7 @@ import {
   ChevronRight,
   FileText,
   Loader2,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { DragEvent, useEffect, useRef, useState } from 'react';
@@ -26,10 +27,12 @@ export const HomeDashboard = () => {
   const {
     activeImport,
     confirmImport,
+    deleteStagedTransactions,
     draftStagedTransactionCategories,
     importCsv,
     imports,
     message,
+    stagedTransactions,
     updateStagedTransactionCategory,
   } = useFinanceData();
   const { categories } = useFinanceSettings();
@@ -43,8 +46,23 @@ export const HomeDashboard = () => {
   );
   const isImporting = activeImport.isProcessing;
   const processedRows = activeImport.processedTransactions;
+  const stagedRowsForActiveImport = activeImport.activeImportId
+    ? stagedTransactions.filter(
+        (transaction) => transaction.importId === activeImport.activeImportId,
+      )
+    : [];
+  const stagedRowIdsForActiveImport = new Set(
+    stagedRowsForActiveImport.map((transaction) => transaction.id),
+  );
   const duplicateRows = processedRows.filter(isDuplicateTransaction);
   const saveableRows = processedRows.filter(isSaveableTransaction);
+  const confirmRowsLabel = `Confirm ${saveableRows.length} ${
+    saveableRows.length === 1 ? 'Row' : 'Rows'
+  }`;
+  const isResolvedActiveImport =
+    activeImport.finalBatchStatus === 'Approved' ||
+    (activeImport.finalBatchStatus === 'Duplicate' &&
+      stagedRowsForActiveImport.length === 0);
   const processingMessage = activeImport.message ?? message;
   const hasUnsavedCategoryChanges = saveableRows.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
@@ -180,7 +198,7 @@ export const HomeDashboard = () => {
 
           <div className="mt-5 overflow-clip rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[44rem] border-collapse text-left text-sm">
+              <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
                 <caption className="sr-only">
                   Processed transactions from the current CSV upload
                 </caption>
@@ -192,6 +210,7 @@ export const HomeDashboard = () => {
                       'Category',
                       'Amount',
                       'Status',
+                      'Action',
                     ].map((header) => (
                       <th
                         key={header}
@@ -207,6 +226,10 @@ export const HomeDashboard = () => {
                   {visibleRows.length > 0 ? (
                     visibleRows.map((transaction) => {
                       const isDuplicate = isDuplicateTransaction(transaction);
+                      const canDelete =
+                        stagedRowIdsForActiveImport.has(transaction.id) &&
+                        !isImporting &&
+                        !isResolvedActiveImport;
                       const category =
                         draftStagedTransactionCategories[transaction.id] ??
                         transaction.category;
@@ -300,13 +323,30 @@ export const HomeDashboard = () => {
                                   : 'Ready'}
                             </span>
                           </td>
+                          <td className="px-4 py-3">
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                className="inline-flex min-h-8 items-center gap-1.5 rounded border border-[hsl(var(--outline-variant))] px-2 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                                onClick={() =>
+                                  deleteStagedTransactions([transaction.id])
+                                }
+                              >
+                                <Trash2
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                                Delete
+                              </button>
+                            ) : null}
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className="px-4 py-10 text-center text-sm text-[hsl(var(--on-surface-variant))]"
                       >
                         No processed rows yet.
@@ -400,17 +440,14 @@ export const HomeDashboard = () => {
               disabled={
                 !activeImport.activeImportId ||
                 isImporting ||
-                activeImport.finalBatchStatus === 'Approved' ||
-                activeImport.finalBatchStatus === 'Duplicate' ||
+                isResolvedActiveImport ||
                 !canResolveImport ||
                 hasUnsavedCategoryChanges
               }
               onClick={saveLatestImport}
             >
               <Check className="size-4" aria-hidden="true" />
-              {saveableRows.length === 0 && duplicateRows.length > 0
-                ? 'Dismiss Duplicates'
-                : 'Confirm Saved'}
+              {confirmRowsLabel}
             </button>
           </div>
         </Panel>

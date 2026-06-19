@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { FinanceTransaction } from '@/features/finance/data';
 import {
+  findDuplicateTransaction,
   getTransactionDuplicateKey,
   markDuplicateTransactions,
 } from '@/features/finance/duplicate-transactions';
@@ -55,5 +56,17 @@ describe('duplicate transaction detection', () => {
 
     expect(checked.status).toBe('Duplicate');
     expect(checked.aiReason).toContain('Duplicate detected');
+  });
+
+  test('finds an existing matching row for manual transaction checks', () => {
+    const existing = createTransaction({ id: 'existing' });
+    const manualEntry = createTransaction({
+      description: 'coffee shop',
+      id: 'manual',
+    });
+
+    expect(findDuplicateTransaction(manualEntry, [existing])?.id).toBe(
+      'existing',
+    );
   });
 });

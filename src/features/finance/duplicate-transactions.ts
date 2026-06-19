@@ -47,6 +47,21 @@ export const getTransactionDuplicateKey = (
     getTransactionDirection(transaction),
   ].join('|');
 
+export const findDuplicateTransaction = (
+  transaction: Pick<
+    FinanceTransaction,
+    'amount' | 'date' | 'description' | 'direction'
+  >,
+  existingTransactions: FinanceTransaction[],
+) => {
+  const transactionKey = getTransactionDuplicateKey(transaction);
+
+  return existingTransactions.find(
+    (existingTransaction) =>
+      getTransactionDuplicateKey(existingTransaction) === transactionKey,
+  );
+};
+
 export const isDuplicateTransaction = (
   transaction: Pick<FinanceTransaction, 'status'>,
 ) => transaction.status === 'Duplicate';
