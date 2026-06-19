@@ -9,7 +9,7 @@ const createEnv = () => {
       .default('localStorage'),
     OLLAMA_ENDPOINT: z.string().url().default('http://localhost:11434'),
     OLLAMA_MODEL: z.string().default('gemma4:12b'),
-    DATABASE_URL: z.string().optional().default('file:./data/ledgerlocal.db'),
+    DATABASE_URL: z.string().url().optional(),
   });
 
   const envVars = {

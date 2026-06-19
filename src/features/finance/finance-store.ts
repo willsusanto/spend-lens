@@ -50,7 +50,7 @@ type StoredImportBatch = Omit<ImportBatch, 'status'> & {
   status?: unknown;
 };
 
-const normalizeTransactions = (
+export const normalizeFinanceTransactions = (
   transactions: StoredTransaction[],
 ): FinanceTransaction[] =>
   transactions.map(({ merchant, ...transaction }) => ({
@@ -63,11 +63,31 @@ const normalizeTransactions = (
     status: normalizeFinanceStatus(transaction.status),
   }));
 
-const normalizeImports = (imports: StoredImportBatch[]): ImportBatch[] =>
+export const normalizeFinanceImports = (
+  imports: StoredImportBatch[],
+): ImportBatch[] =>
   imports.map((item) => ({
     ...item,
     status: normalizeFinanceStatus(item.status),
   }));
+
+export const normalizeFinanceStoreSnapshot = (
+  snapshot: Partial<FinanceStoreSnapshot>,
+): FinanceStoreSnapshot => ({
+  imports: normalizeFinanceImports(
+    Array.isArray(snapshot.imports) ? snapshot.imports : seedImports,
+  ),
+  stagedTransactions: normalizeFinanceTransactions(
+    Array.isArray(snapshot.stagedTransactions)
+      ? snapshot.stagedTransactions
+      : [],
+  ),
+  transactions: normalizeFinanceTransactions(
+    Array.isArray(snapshot.transactions)
+      ? snapshot.transactions
+      : seedTransactions,
+  ),
+});
 
 const writeStored = async <T>(key: string, value: T) => {
   if (typeof window === 'undefined') {
@@ -79,17 +99,17 @@ const writeStored = async <T>(key: string, value: T) => {
 
 export const localStorageFinanceStore: FinanceStore = {
   load: async () => {
-    return {
-      imports: normalizeImports(
+    return normalizeFinanceStoreSnapshot({
+      imports: normalizeFinanceImports(
         readStored<StoredImportBatch[]>(importsKey, seedImports),
       ),
-      stagedTransactions: normalizeTransactions(
+      stagedTransactions: normalizeFinanceTransactions(
         readStored<StoredTransaction[]>(stagedTransactionsKey, []),
       ),
-      transactions: normalizeTransactions(
+      transactions: normalizeFinanceTransactions(
         readStored<StoredTransaction[]>(transactionsKey, seedTransactions),
       ),
-    };
+    });
   },
   saveImports: (imports) => writeStored(importsKey, imports),
   saveStagedTransactions: (transactions) =>
@@ -98,27 +118,62 @@ export const localStorageFinanceStore: FinanceStore = {
     writeStored(transactionsKey, transactions),
 };
 
-export const createUnsupportedDbFinanceStore = (): FinanceStore => {
-  const fail = async () => {
-    throw new Error(
-      'Database-backed finance store is not implemented yet. Provide a FinanceStore implementation backed by API routes or a server database.',
-    );
-  };
+const financeStoreApiPath = '/api/finance-store';
 
-  return {
-    load: async () => {
-      await fail();
+const parseApiError = async (response: Response) => {
+  try {
+    const body = (await response.json()) as { error?: unknown };
 
-      return {
-        imports: seedImports,
-        stagedTransactions: [],
-        transactions: seedTransactions,
-      };
-    },
-    saveImports: fail,
-    saveStagedTransactions: fail,
-    saveTransactions: fail,
-  };
+    if (typeof body.error === 'string') {
+      return body.error;
+    }
+  } catch {
+    // Fall back to the status line below.
+  }
+
+  return `Finance store request failed with ${response.status}.`;
 };
 
-export const getDefaultFinanceStore = () => localStorageFinanceStore;
+const fetchFinanceStore = async (init: RequestInit = {}): Promise<Response> => {
+  const response = await fetch(financeStoreApiPath, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return response;
+};
+
+const saveFinanceStorePatch = async (patch: Partial<FinanceStoreSnapshot>) => {
+  await fetchFinanceStore({
+    body: JSON.stringify(patch),
+    method: 'PATCH',
+  });
+};
+
+export const apiFinanceStore: FinanceStore = {
+  load: async () => {
+    const response = await fetchFinanceStore({
+      cache: 'no-store',
+      method: 'GET',
+    });
+    const snapshot = (await response.json()) as Partial<FinanceStoreSnapshot>;
+
+    return normalizeFinanceStoreSnapshot(snapshot);
+  },
+  saveImports: (imports) => saveFinanceStorePatch({ imports }),
+  saveStagedTransactions: (stagedTransactions) =>
+    saveFinanceStorePatch({ stagedTransactions }),
+  saveTransactions: (transactions) => saveFinanceStorePatch({ transactions }),
+};
+
+export const getDefaultFinanceStore = () =>
+  process.env.NEXT_PUBLIC_FINANCE_STORE_MODE === 'database'
+    ? apiFinanceStore
+    : localStorageFinanceStore;
