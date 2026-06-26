@@ -101,24 +101,6 @@ const getCountBreakdown = (transactions: FinanceTransaction[]) => {
     .toSorted((left, right) => right.count - left.count);
 };
 
-const getConicGradient = (slices: CategorySlice[]) => {
-  if (slices.length === 0) {
-    return 'conic-gradient(hsl(var(--surface-high)) 0deg 360deg)';
-  }
-
-  let start = 0;
-  const stops = slices.map((slice) => {
-    const end = start + slice.percentage * 3.6;
-    const stop = `${slice.color} ${start}deg ${end}deg`;
-
-    start = end;
-
-    return stop;
-  });
-
-  return `conic-gradient(${stops.join(', ')})`;
-};
-
 const formatPercentage = (value: number) =>
   new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 1,
@@ -130,6 +112,50 @@ const sortCategorySlices = (slices: CategorySlice[], sort: CategorySort) =>
     sort === 'high' ? right.amount - left.amount : left.amount - right.amount,
   );
 
+const getSliceLabel = (slice: CategorySlice) =>
+  `${slice.name}: ${formatPercentage(slice.percentage)}%`;
+
+const getPointOnCircle = (radius: number, angle: number) => {
+  const radians = ((angle - 90) * Math.PI) / 180;
+
+  return {
+    x: 60 + radius * Math.cos(radians),
+    y: 60 + radius * Math.sin(radians),
+  };
+};
+
+const getDonutSegmentPath = (
+  startPercentage: number,
+  endPercentage: number,
+) => {
+  const startAngle = startPercentage * 3.6;
+  const endAngle = endPercentage * 3.6;
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+  const outerStart = getPointOnCircle(54, startAngle);
+  const outerEnd = getPointOnCircle(54, endAngle);
+  const innerStart = getPointOnCircle(36, startAngle);
+  const innerEnd = getPointOnCircle(36, endAngle);
+
+  if (endPercentage - startPercentage >= 99.999) {
+    return [
+      'M 60 6',
+      'A 54 54 0 1 1 59.99 6',
+      'Z',
+      'M 60 24',
+      'A 36 36 0 1 0 59.99 24',
+      'Z',
+    ].join(' ');
+  }
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A 54 54 0 ${largeArcFlag} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A 36 36 0 ${largeArcFlag} 0 ${innerStart.x} ${innerStart.y}`,
+    'Z',
+  ].join(' ');
+};
+
 const DonutChart = ({
   emptyLabel,
   label,
@@ -140,53 +166,128 @@ const DonutChart = ({
   label: string;
   slices: CategorySlice[];
   totalLabel: string;
-}) => (
-  <Panel className="grid gap-5 p-5">
-    <div className="flex items-center gap-2">
-      <PieChart className="size-5" aria-hidden="true" />
-      <h2 className="text-base font-semibold">{label}</h2>
-    </div>
+}) => {
+  const [hoveredSliceName, setHoveredSliceName] = useState<string | null>(null);
+  const hoveredSlice =
+    slices.find((slice) => slice.name === hoveredSliceName) ?? null;
+  let offset = 0;
 
-    <div className="grid gap-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:items-center">
-      <div
-        aria-label={label}
-        className="relative mx-auto grid aspect-square w-full max-w-56 place-items-center rounded-full"
-        role="img"
-        style={{ background: getConicGradient(slices) }}
-      >
-        <div className="grid size-[58%] place-items-center rounded-full border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] text-center">
-          <span className="px-3 text-sm font-semibold leading-5">
-            {slices.length > 0 ? totalLabel : emptyLabel}
-          </span>
+  return (
+    <Panel className="grid gap-5 p-5">
+      <div className="flex items-center gap-2">
+        <PieChart className="size-5" aria-hidden="true" />
+        <h2 className="text-base font-semibold">{label}</h2>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:items-center">
+        <div className="relative mx-auto grid aspect-square w-full max-w-56 place-items-center">
+          <svg
+            aria-label={label}
+            className="size-full overflow-visible rounded-full"
+            role="img"
+            viewBox="0 0 120 120"
+          >
+            <circle
+              aria-hidden="true"
+              cx="60"
+              cy="60"
+              fill="none"
+              r="46"
+              stroke="hsl(var(--surface-high))"
+              strokeWidth="18"
+            />
+            {slices.length > 0
+              ? slices.map((slice) => {
+                  const start = offset;
+                  const end = offset + slice.percentage;
+                  const isHovered = hoveredSliceName === slice.name;
+                  const hasHover = hoveredSliceName !== null;
+
+                  offset = end;
+
+                  return (
+                    <path
+                      key={slice.name}
+                      aria-label={getSliceLabel(slice)}
+                      className={cn(
+                        'cursor-pointer outline-none transition-[opacity,filter] duration-150 focus-visible:stroke-1 focus-visible:stroke-[hsl(var(--foreground))]',
+                        hasHover && !isHovered && 'opacity-35',
+                        isHovered && 'drop-shadow-sm [filter:brightness(1.08)]',
+                      )}
+                      d={getDonutSegmentPath(start, end)}
+                      fill={slice.color}
+                      fillRule="evenodd"
+                      role="button"
+                      tabIndex={0}
+                      onBlur={() => setHoveredSliceName(null)}
+                      onFocus={() => setHoveredSliceName(slice.name)}
+                      onPointerEnter={() => setHoveredSliceName(slice.name)}
+                      onPointerLeave={() => setHoveredSliceName(null)}
+                    />
+                  );
+                })
+              : null}
+          </svg>
+          <div className="pointer-events-none absolute inset-[21%] grid place-items-center rounded-full border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] text-center">
+            <span className="grid gap-1 px-3 text-sm font-semibold leading-5">
+              <span className="truncate">
+                {hoveredSlice
+                  ? formatPercentage(hoveredSlice.percentage)
+                  : slices.length > 0
+                    ? totalLabel
+                    : emptyLabel}
+              </span>
+              {hoveredSlice ? (
+                <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
+                  {hoveredSlice.name}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-2 p-1">
+          {slices.length > 0 ? (
+            slices.map((slice) => {
+              const isHovered = hoveredSliceName === slice.name;
+              const hasHover = hoveredSliceName !== null;
+
+              return (
+                <button
+                  key={slice.name}
+                  type="button"
+                  className={cn(
+                    'grid min-h-9 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded px-2 text-left text-sm transition-colors',
+                    hasHover && !isHovered && 'opacity-55',
+                    isHovered &&
+                      'bg-[hsl(var(--surface-low))] text-[hsl(var(--foreground))] ring-1 ring-inset ring-[hsl(var(--outline-variant))]',
+                  )}
+                  onBlur={() => setHoveredSliceName(null)}
+                  onFocus={() => setHoveredSliceName(slice.name)}
+                  onPointerEnter={() => setHoveredSliceName(slice.name)}
+                  onPointerLeave={() => setHoveredSliceName(null)}
+                >
+                  <span
+                    className="size-3 rounded-sm"
+                    style={{ backgroundColor: slice.color }}
+                  />
+                  <span className="truncate">{slice.name}</span>
+                  <span className="font-mono text-xs text-[hsl(var(--on-surface-variant))]">
+                    {formatPercentage(slice.percentage)}%
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <p className="text-sm text-[hsl(var(--on-surface-variant))]">
+              No transactions available.
+            </p>
+          )}
         </div>
       </div>
-
-      <div className="grid gap-2">
-        {slices.length > 0 ? (
-          slices.slice(0, 6).map((slice) => (
-            <div
-              key={slice.name}
-              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-sm"
-            >
-              <span
-                className="size-3 rounded-sm"
-                style={{ backgroundColor: slice.color }}
-              />
-              <span className="truncate">{slice.name}</span>
-              <span className="font-mono text-xs text-[hsl(var(--on-surface-variant))]">
-                {formatPercentage(slice.percentage)}%
-              </span>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-[hsl(var(--on-surface-variant))]">
-            No transactions available.
-          </p>
-        )}
-      </div>
-    </div>
-  </Panel>
-);
+    </Panel>
+  );
+};
 
 const CategoryBars = ({
   onSortChange,

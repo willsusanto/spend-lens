@@ -32,7 +32,7 @@ export const AppShell = ({
       <header className="z-20 grid min-h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 py-3 sm:px-6">
         <Link
           href="/"
-          className="interactive-lift inline-flex min-h-11 items-center gap-2 rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.72)] px-3 text-sm font-semibold shadow-sm backdrop-blur-xl"
+          className="interactive-lift inline-flex min-h-11 items-center gap-2 justify-self-start rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.72)] px-3 text-sm font-semibold shadow-sm backdrop-blur-xl"
         >
           <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground">
             <Sparkles className="size-3.5" aria-hidden="true" />
