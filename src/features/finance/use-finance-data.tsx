@@ -25,11 +25,22 @@ import {
   isSaveableTransaction,
   markDuplicateTransactions,
 } from './duplicate-transactions';
+import {
+  ActiveImport,
+  applyManualCategory,
+  chunkTransactions,
+  ensureImportsForStagedTransactions,
+  getImportBatchStatus,
+  getImportBatchStatusAfterDeletion,
+  getRemainingImportBatchStatus,
+  idleActiveImport,
+  isTransactionCategorized,
+  restoreActiveImportFromStaged,
+} from './finance-import-state';
 import { FinanceStore, localStorageFinanceStore } from './finance-store';
 import { useFinanceSettings } from './use-finance-settings';
 
 const categorizationTimeoutMs = 1200_000;
-const categorizationChunkSize = 1;
 
 type CategorizeResponse = {
   transactions: FinanceTransaction[];
@@ -61,18 +72,6 @@ export type ManualTransactionInput = {
 export type AddTransactionResult = {
   message: string;
   status: 'duplicate' | 'saved';
-};
-
-export type ActiveImport = {
-  activeImportId: string | null;
-  fileName: string | null;
-  finalBatchStatus: FinanceStatus | null;
-  isComplete: boolean;
-  isProcessing: boolean;
-  message: string | null;
-  processedRows: number;
-  processedTransactions: FinanceTransaction[];
-  totalRows: number;
 };
 
 type FinanceDataContextValue = {
@@ -108,202 +107,12 @@ type FinanceDataContextValue = {
   updateTransactionsCategory: (ids: string[], category: string) => void;
 };
 
-const idleActiveImport: ActiveImport = {
-  activeImportId: null,
-  fileName: null,
-  finalBatchStatus: null,
-  isComplete: false,
-  isProcessing: false,
-  message: null,
-  processedRows: 0,
-  processedTransactions: [],
-  totalRows: 0,
-};
-
 const idleSyncStatus: FinanceSyncStatus = {
   lastSavedAt: null,
   state: 'idle',
 };
 
 const FinanceDataContext = createContext<FinanceDataContextValue | null>(null);
-
-const chunkTransactions = (transactions: FinanceTransaction[]) => {
-  const chunks: FinanceTransaction[][] = [];
-
-  for (
-    let index = 0;
-    index < transactions.length;
-    index += categorizationChunkSize
-  ) {
-    chunks.push(transactions.slice(index, index + categorizationChunkSize));
-  }
-
-  return chunks;
-};
-
-const isTransactionCategorized = (transaction: FinanceTransaction) =>
-  !isDuplicateTransaction(transaction) &&
-  transaction.category !== 'Uncategorized' &&
-  transaction.status !== 'Review' &&
-  transaction.confidence >= 70;
-
-const getImportBatchStatus = (
-  transactions: FinanceTransaction[],
-): FinanceStatus => {
-  if (transactions.length > 0 && transactions.every(isDuplicateTransaction)) {
-    return 'Duplicate';
-  }
-
-  const saveableTransactions = transactions.filter(isSaveableTransaction);
-
-  return saveableTransactions.length > 0 &&
-    saveableTransactions.every(isTransactionCategorized)
-    ? 'Pending'
-    : 'Review';
-};
-
-const getRemainingImportBatchStatus = (
-  transactions: FinanceTransaction[],
-): FinanceStatus =>
-  transactions.length === 0 ? 'Duplicate' : getImportBatchStatus(transactions);
-
-const getImportBatchStatusAfterDeletion = (
-  remainingTransactions: FinanceTransaction[],
-  deletedTransactions: FinanceTransaction[],
-): FinanceStatus => {
-  if (remainingTransactions.length > 0) {
-    return getImportBatchStatus(remainingTransactions);
-  }
-
-  return deletedTransactions.every(isDuplicateTransaction)
-    ? 'Duplicate'
-    : 'Review';
-};
-
-const getImportIdTimestamp = (importId: string) => {
-  const timestamp = Number(importId.replace(/^import-/, ''));
-
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
-
-const getStagedTransactionsByImportId = (
-  stagedTransactions: FinanceTransaction[],
-) => {
-  const transactionsByImportId = new Map<string, FinanceTransaction[]>();
-
-  stagedTransactions.forEach((transaction) => {
-    if (!transaction.importId) {
-      return;
-    }
-
-    transactionsByImportId.set(transaction.importId, [
-      ...(transactionsByImportId.get(transaction.importId) ?? []),
-      transaction,
-    ]);
-  });
-
-  return transactionsByImportId;
-};
-
-const getImportDateFromId = (importId: string) => {
-  const timestamp = getImportIdTimestamp(importId);
-
-  if (timestamp === 0) {
-    return 'Restored import';
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
-};
-
-const ensureImportsForStagedTransactions = (
-  imports: ImportBatch[],
-  stagedTransactions: FinanceTransaction[],
-) => {
-  const existingImportIds = new Set(imports.map((item) => item.id));
-  const transactionsByImportId =
-    getStagedTransactionsByImportId(stagedTransactions);
-  const restoredImports = Array.from(transactionsByImportId.entries())
-    .filter(([importId]) => !existingImportIds.has(importId))
-    .map(([importId, transactions]) => ({
-      id: importId,
-      duplicateRows: transactions.filter(isDuplicateTransaction).length,
-      fileName: transactions[0]?.sourceFile ?? 'Restored CSV import',
-      date: getImportDateFromId(importId),
-      rows: transactions.length,
-      status: getImportBatchStatus(transactions),
-    }));
-
-  return [...restoredImports, ...imports];
-};
-
-const restoreActiveImportFromStaged = (
-  imports: ImportBatch[],
-  stagedTransactions: FinanceTransaction[],
-): ActiveImport => {
-  const transactionsByImportId =
-    getStagedTransactionsByImportId(stagedTransactions);
-
-  const restorableImport =
-    imports.find(
-      (item) =>
-        item.status !== 'Approved' && transactionsByImportId.has(item.id),
-    ) ??
-    Array.from(transactionsByImportId.keys())
-      .toSorted(
-        (left, right) =>
-          getImportIdTimestamp(right) - getImportIdTimestamp(left),
-      )
-      .map((importId) => imports.find((item) => item.id === importId))
-      .find((item): item is ImportBatch => Boolean(item));
-
-  if (!restorableImport) {
-    return idleActiveImport;
-  }
-
-  const processedTransactions =
-    transactionsByImportId.get(restorableImport.id) ?? [];
-
-  if (processedTransactions.length === 0) {
-    return idleActiveImport;
-  }
-
-  return {
-    activeImportId: restorableImport.id,
-    fileName:
-      restorableImport.fileName ??
-      processedTransactions[0]?.sourceFile ??
-      'Restored CSV import',
-    finalBatchStatus: restorableImport.status,
-    isComplete: true,
-    isProcessing: false,
-    message: `Restored ${processedTransactions.length} staged rows from ${restorableImport.fileName}.`,
-    processedRows: processedTransactions.length,
-    processedTransactions,
-    totalRows: restorableImport.rows || processedTransactions.length,
-  };
-};
-
-const applyManualCategory = (
-  transaction: FinanceTransaction,
-  category: string,
-  reason: string,
-): FinanceTransaction => {
-  const needsReview = category === 'Uncategorized';
-
-  return {
-    ...transaction,
-    category,
-    confidence: needsReview ? Math.min(transaction.confidence, 31) : 100,
-    status: needsReview ? 'Review' : 'Pending',
-    categorizationSource: 'manual',
-    aiReason: category === transaction.category ? transaction.aiReason : reason,
-  };
-};
 
 export const FinanceDataProvider = ({
   children,
