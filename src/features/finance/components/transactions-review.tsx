@@ -3,8 +3,6 @@
 import {
   Calendar,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Layers3,
   Plus,
@@ -27,6 +25,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import {
+  CategorySelect,
+  DeleteRowButton,
+  SignedAmount,
+  TablePaginationFooter,
+} from '@/features/finance/components/transaction-table-parts';
 import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
 import {
   getTransactionsExportFileName,
@@ -602,55 +606,31 @@ export const TransactionsReview = () => {
                         {transaction.description}
                       </th>
                       <td className="px-4 py-3">
-                        <label>
-                          <span className="sr-only">
-                            Category for {transaction.description}
-                          </span>
-                          <select
-                            className={cn(
-                              'min-h-9 w-48 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
-                              draftTransactionCategories[transaction.id] &&
-                                'border-primary bg-[hsl(var(--surface-low))]',
-                            )}
-                            value={category}
-                            onChange={(event) =>
-                              updateDraftCategory(
-                                transaction.id,
-                                event.target.value,
-                              )
-                            }
-                          >
-                            {transactionCategories.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <CategorySelect
+                          ariaLabel={`Category for ${transaction.description}`}
+                          categories={transactionCategories}
+                          className="w-48"
+                          hasDraft={Boolean(
+                            draftTransactionCategories[transaction.id],
+                          )}
+                          value={category}
+                          onChange={(value) =>
+                            updateDraftCategory(transaction.id, value)
+                          }
+                        />
                       </td>
                       <td className="px-4 py-3 text-[hsl(var(--on-surface-variant))]">
                         {categorySourceLabel}
                       </td>
-                      <td
-                        className={cn(
-                          'whitespace-nowrap px-4 py-3 text-right font-mono font-semibold',
-                          transaction.amount > 0 &&
-                            'text-emerald-700 dark:text-emerald-300',
-                        )}
-                      >
-                        {formatSignedCurrency(transaction.amount)}
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <SignedAmount amount={transaction.amount} />
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          className="grid min-h-8 min-w-8 place-items-center rounded border border-[hsl(var(--outline-variant))] transition-colors hover:bg-[hsl(var(--surface-low))]"
+                        <DeleteRowButton
+                          iconOnly
                           onClick={() => openDeleteDialog([transaction.id])}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                          <span className="sr-only">
-                            Delete {transaction.description}
-                          </span>
-                        </button>
+                          srLabel={`Delete ${transaction.description}`}
+                        />
                       </td>
                     </tr>
                   );
@@ -658,60 +638,18 @@ export const TransactionsReview = () => {
               </tbody>
             </table>
           </div>
-          <footer className="flex shrink-0 flex-col gap-3 border-t border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.9)] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Showing {visibleTransactions.length} of{' '}
-              {filteredTransactions.length}
-              {selectedTransactionIds.length > 0
-                ? ` - ${selectedTransactionIds.length} selected`
-                : ''}
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2">
-                <span>Rows</span>
-                <select
-                  className="min-h-8 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-2 text-xs"
-                  value={pageSize}
-                  onChange={(event) =>
-                    setPageSize(
-                      Number(
-                        event.target.value,
-                      ) as (typeof pageSizeOptions)[number],
-                    )
-                  }
-                >
-                  {pageSizeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <span>
-                Page {page} of {pageCount}
-              </span>
-              <button
-                type="button"
-                className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))]"
-                disabled={page === 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                <ChevronLeft className="size-4" aria-hidden="true" />
-                <span className="sr-only">Previous page</span>
-              </button>
-              <button
-                type="button"
-                className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))] disabled:opacity-40"
-                disabled={page === pageCount}
-                onClick={() =>
-                  setPage((current) => Math.min(pageCount, current + 1))
-                }
-              >
-                <ChevronRight className="size-4" aria-hidden="true" />
-                <span className="sr-only">Next page</span>
-              </button>
-            </div>
-          </footer>
+          <TablePaginationFooter
+            className="shrink-0"
+            itemLabel=""
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            selectedCount={selectedTransactionIds.length}
+            totalCount={filteredTransactions.length}
+            visibleCount={visibleTransactions.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </section>
       </PageContainer>
     </FinanceAppShell>

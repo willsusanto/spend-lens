@@ -70,25 +70,6 @@ export const formatSignedCurrency = (amount: number) => {
   return formatCurrency(amount);
 };
 
-export const summaryMetrics = [
-  {
-    label: 'Total Spending',
-    value: '$1,240.50',
-    helper: '+12% vs last week',
-  },
-  {
-    label: 'Total Income',
-    value: '$3,400.00',
-    helper: 'Direct Deposit',
-  },
-  {
-    label: 'Needs Review',
-    value: '14',
-    unit: 'Items',
-    helper: 'Uncategorized imports',
-  },
-];
-
 export const seedImports: ImportBatch[] = [
   {
     id: 'seed-import-chase-oct',
@@ -110,34 +91,6 @@ export const seedImports: ImportBatch[] = [
     date: 'Oct 05, 14:20 PM',
     rows: 215,
     status: 'Pending',
-  },
-];
-
-export const spendingByCategory = [
-  { name: 'Groceries', amount: '$420.00', percent: 75, tone: 'bg-primary' },
-  {
-    name: 'Eating Out',
-    amount: '$285.50',
-    percent: 45,
-    tone: 'bg-[hsl(var(--surface-tint))]',
-  },
-  {
-    name: 'Transport',
-    amount: '$150.00',
-    percent: 30,
-    tone: 'bg-[hsl(var(--outline))]',
-  },
-  {
-    name: 'Entertainment',
-    amount: '$95.00',
-    percent: 15,
-    tone: 'bg-[hsl(var(--outline-variant))]',
-  },
-  {
-    name: 'Bills / Utilities',
-    amount: '$290.00',
-    percent: 50,
-    tone: 'bg-secondary-foreground',
   },
 ];
 

@@ -1,20 +1,19 @@
 'use client';
 
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Loader2,
-  Trash2,
-  Upload,
-} from 'lucide-react';
+import { Check, FileText, Loader2, Upload } from 'lucide-react';
 import { DragEvent, useEffect, useRef, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
+import {
+  CategorySelect,
+  DeleteRowButton,
+  SignedAmount,
+  TablePaginationFooter,
+  TransactionStatusBadge,
+} from '@/features/finance/components/transaction-table-parts';
+import { pageSizeOptions } from '@/features/finance/data';
 import {
   isDuplicateTransaction,
   isSaveableTransaction,
@@ -260,84 +259,52 @@ export const HomeDashboard = () => {
                                 Duplicate
                               </span>
                             ) : (
-                              <label>
-                                <span className="sr-only">
-                                  Category for {transaction.description}
-                                </span>
-                                <select
-                                  className={cn(
-                                    'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
-                                    category === 'Uncategorized' &&
-                                      'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
-                                    draftStagedTransactionCategories[
-                                      transaction.id
-                                    ] &&
-                                      'border-primary bg-[hsl(var(--surface-low))]',
-                                  )}
-                                  value={category}
-                                  onChange={(event) =>
-                                    updateDraftCategory(
-                                      transaction.id,
-                                      event.target.value,
-                                    )
-                                  }
-                                >
-                                  {categories.map((category) => (
-                                    <option key={category} value={category}>
-                                      {category}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                              <CategorySelect
+                                ariaLabel={`Category for ${transaction.description}`}
+                                categories={categories}
+                                hasDraft={Boolean(
+                                  draftStagedTransactionCategories[
+                                    transaction.id
+                                  ],
+                                )}
+                                isInvalid={category === 'Uncategorized'}
+                                value={category}
+                                onChange={(value) =>
+                                  updateDraftCategory(transaction.id, value)
+                                }
+                              />
                             )}
                           </td>
-                          <td
-                            className={cn(
-                              'whitespace-nowrap px-4 py-3 text-right font-mono font-semibold',
-                              transaction.amount > 0 &&
-                                'text-emerald-700 dark:text-emerald-300',
-                            )}
-                          >
-                            {formatSignedCurrency(transaction.amount)}
+                          <td className="whitespace-nowrap px-4 py-3 text-right">
+                            <SignedAmount amount={transaction.amount} />
                           </td>
                           <td className="px-4 py-3">
-                            <span
-                              className={cn(
-                                'inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-high))] px-2 py-1 text-xs font-medium',
-                                isDuplicate &&
-                                  'bg-[hsl(var(--surface-highest))]',
-                                needsReview &&
-                                  'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100',
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'size-1.5 rounded-full bg-[hsl(var(--on-surface-variant))]',
-                                  needsReview && 'bg-amber-600',
-                                )}
-                              />
-                              {isDuplicate
-                                ? 'Duplicate'
-                                : needsReview
-                                  ? 'Needs review'
-                                  : 'Ready'}
-                            </span>
+                            <TransactionStatusBadge
+                              state={
+                                isDuplicate
+                                  ? 'duplicate'
+                                  : needsReview
+                                    ? 'needs-review'
+                                    : 'ready'
+                              }
+                              text={
+                                isDuplicate
+                                  ? 'Duplicate'
+                                  : needsReview
+                                    ? 'Needs review'
+                                    : 'Ready'
+                              }
+                            />
                           </td>
                           <td className="px-4 py-3">
                             {canDelete ? (
-                              <button
-                                type="button"
-                                className="inline-flex min-h-8 items-center gap-1.5 rounded border border-[hsl(var(--outline-variant))] px-2 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                              <DeleteRowButton
                                 onClick={() =>
                                   deleteStagedTransactions([transaction.id])
                                 }
                               >
-                                <Trash2
-                                  className="size-3.5"
-                                  aria-hidden="true"
-                                />
                                 Delete
-                              </button>
+                              </DeleteRowButton>
                             ) : null}
                           </td>
                         </tr>
@@ -356,57 +323,17 @@ export const HomeDashboard = () => {
                 </tbody>
               </table>
             </div>
-            <footer className="flex flex-col gap-3 border-t border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Showing {visibleRows.length} of {processedRows.length} processed
-                rows
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2">
-                  <span>Rows</span>
-                  <select
-                    className="min-h-8 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-2 text-xs"
-                    value={pageSize}
-                    onChange={(event) =>
-                      setPageSize(
-                        Number(
-                          event.target.value,
-                        ) as (typeof pageSizeOptions)[number],
-                      )
-                    }
-                  >
-                    {pageSizeOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span>
-                  Page {page} of {pageCount}
-                </span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))] disabled:opacity-40"
-                    disabled={page === 1}
-                    onClick={() => setPage((current) => current - 1)}
-                  >
-                    <ChevronLeft className="size-4" aria-hidden="true" />
-                    <span className="sr-only">Previous processing page</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="grid min-h-8 min-w-8 place-items-center rounded hover:bg-[hsl(var(--surface-high))] disabled:opacity-40"
-                    disabled={page === pageCount}
-                    onClick={() => setPage((current) => current + 1)}
-                  >
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                    <span className="sr-only">Next processing page</span>
-                  </button>
-                </div>
-              </div>
-            </footer>
+            <TablePaginationFooter
+              className="bg-[hsl(var(--surface-low))] backdrop-blur-none"
+              itemLabel="processed rows"
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              totalCount={processedRows.length}
+              visibleCount={visibleRows.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

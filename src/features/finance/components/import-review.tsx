@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronLeft, ListChecks, Trash2 } from 'lucide-react';
+import { ChevronLeft, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 
@@ -8,7 +8,12 @@ import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { MetricCard } from '@/features/finance/components/metric-card';
-import { formatSignedCurrency } from '@/features/finance/data';
+import {
+  CategorySelect,
+  DeleteRowButton,
+  SignedAmount,
+  TransactionStatusBadge,
+} from '@/features/finance/components/transaction-table-parts';
 import {
   isDuplicateTransaction,
   isSaveableTransaction,
@@ -248,38 +253,31 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             )}
                           </td>
                           <td className="p-4 text-right font-mono font-medium">
-                            {formatSignedCurrency(transaction.amount)}
+                            <SignedAmount
+                              amount={transaction.amount}
+                              className="font-medium"
+                            />
                           </td>
                           <td className="p-4">
                             <label className="grid gap-2">
                               <span className="sr-only">
                                 Category for {transaction.description}
                               </span>
-                              <select
-                                className={cn(
-                                  'min-h-9 w-44 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--background))] px-2 text-xs font-medium',
-                                  needsReview &&
-                                    'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
+                              <CategorySelect
+                                ariaLabel={`Category for ${transaction.description}`}
+                                categories={categories}
+                                disabled={isResolved || isDuplicate}
+                                hasDraft={Boolean(
                                   draftStagedTransactionCategories[
                                     transaction.id
-                                  ] &&
-                                    'border-primary bg-[hsl(var(--surface-low))]',
+                                  ],
                                 )}
+                                isInvalid={needsReview}
                                 value={category}
-                                onChange={(event) =>
-                                  updateDraftCategory(
-                                    transaction.id,
-                                    event.target.value,
-                                  )
+                                onChange={(value) =>
+                                  updateDraftCategory(transaction.id, value)
                                 }
-                                disabled={isResolved || isDuplicate}
-                              >
-                                {categories.map((category) => (
-                                  <option key={category} value={category}>
-                                    {category}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             </label>
                             <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
                               {transaction.categorizationSource === 'ollama'
@@ -317,53 +315,34 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                             {transaction.aiReason ?? 'No reason returned.'}
                           </td>
                           <td className="p-4">
-                            <span
-                              className={cn(
-                                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+                            <TransactionStatusBadge
+                              state={
                                 isApproved
-                                  ? 'bg-primary text-primary-foreground'
+                                  ? 'approved'
                                   : isDuplicate
-                                    ? 'bg-[hsl(var(--surface-highest))]'
-                                    : 'bg-[hsl(var(--surface-high))]',
-                              )}
-                            >
-                              {isApproved ? (
-                                <Check
-                                  className="size-3.5"
-                                  aria-hidden="true"
-                                />
-                              ) : (
-                                <span
-                                  className={cn(
-                                    'size-1.5 rounded-full',
-                                    needsReview
-                                      ? 'bg-amber-600'
-                                      : 'bg-[hsl(var(--on-surface-variant))]',
-                                  )}
-                                />
-                              )}
-                              {isDuplicate
-                                ? 'Duplicate'
-                                : needsReview && !isApproved
-                                  ? 'Needs review'
-                                  : transaction.status}
-                            </span>
+                                    ? 'duplicate'
+                                    : needsReview
+                                      ? 'needs-review'
+                                      : 'neutral'
+                              }
+                              text={
+                                isDuplicate
+                                  ? 'Duplicate'
+                                  : needsReview && !isApproved
+                                    ? 'Needs review'
+                                    : transaction.status
+                              }
+                            />
                           </td>
                           <td className="p-4">
                             {canDelete ? (
-                              <button
-                                type="button"
-                                className="inline-flex min-h-8 items-center gap-1.5 rounded border border-[hsl(var(--outline-variant))] px-2 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                              <DeleteRowButton
                                 onClick={() =>
                                   deleteStagedTransactions([transaction.id])
                                 }
                               >
-                                <Trash2
-                                  className="size-3.5"
-                                  aria-hidden="true"
-                                />
                                 Delete
-                              </button>
+                              </DeleteRowButton>
                             ) : null}
                           </td>
                         </tr>
