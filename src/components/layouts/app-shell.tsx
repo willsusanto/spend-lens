@@ -1,6 +1,6 @@
 'use client';
 
-import { ChartPie, Cloud, Home, List, Settings } from 'lucide-react';
+import { ChartPie, Cloud, Home, List, Settings, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
@@ -28,14 +28,20 @@ export const AppShell = ({
   const pathname = usePathname();
 
   return (
-    <div className="fixed inset-0 flex h-dvh flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      <header className="z-20 grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 sm:px-6">
-        <Link href="/" className="text-base font-bold leading-5">
+    <div className="fixed inset-0 flex h-dvh flex-col overflow-hidden bg-transparent text-[hsl(var(--foreground))]">
+      <header className="z-20 grid min-h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 py-3 sm:px-6">
+        <Link
+          href="/"
+          className="interactive-lift inline-flex min-h-11 items-center gap-2 rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.72)] px-3 text-sm font-semibold shadow-sm backdrop-blur-xl"
+        >
+          <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground">
+            <Sparkles className="size-3.5" aria-hidden="true" />
+          </span>
           SpendLens
         </Link>
 
         <nav className="min-w-0" aria-label="Primary">
-          <ul className="flex items-center justify-center gap-1 sm:gap-8">
+          <ul className="flex items-center justify-center gap-1 rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.72)] p-1 shadow-sm backdrop-blur-xl">
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -49,9 +55,9 @@ export const AppShell = ({
                     href={item.href}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'relative inline-flex min-h-14 items-center px-2 text-sm text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]',
+                      'interactive-lift relative inline-flex min-h-10 items-center rounded-full px-3 text-sm text-[hsl(var(--on-surface-variant))] hover:bg-[hsl(var(--surface-low))] hover:text-[hsl(var(--foreground))]',
                       isActive &&
-                        'font-medium text-[hsl(var(--foreground))] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-[hsl(var(--foreground))]',
+                        'bg-[hsl(var(--foreground))] font-medium text-[hsl(var(--background))] shadow-sm hover:bg-[hsl(var(--foreground))] hover:text-[hsl(var(--background))]',
                     )}
                   >
                     <Icon
@@ -83,8 +89,8 @@ export const AppShell = ({
       <main
         id="content"
         className={cn(
-          'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
-          contentPadding && 'p-5 sm:p-8',
+          'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth',
+          contentPadding && 'px-4 pb-8 pt-2 sm:px-8 sm:pb-10',
         )}
       >
         {children}

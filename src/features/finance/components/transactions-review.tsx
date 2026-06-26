@@ -2,12 +2,16 @@
 
 import {
   Calendar,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Layers3,
   Plus,
   Search,
   SlidersHorizontal,
   Trash2,
+  WalletCards,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
@@ -24,19 +28,28 @@ import {
 } from '@/components/ui/dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
+import {
+  getTransactionsExportFileName,
+  serializeTransactionsCsv,
+} from '@/features/finance/export-transactions';
 import { uncategorizedCategory } from '@/features/finance/finance-settings';
+import {
+  allCategoriesFilter,
+  getFilteredTransactions,
+  getTransactionReviewSummary,
+  TransactionDateRange,
+  TransactionSortKey,
+} from '@/features/finance/transaction-review-utils';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
 
-type DateRange = 'all' | '30' | '90';
-type SortKey = 'newest' | 'oldest' | 'amount-high' | 'amount-low';
-
-const getTimestamp = (date: string) => {
-  const parsed = new Date(date).getTime();
-
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
+const getQuickMetricTone = (index: number) =>
+  [
+    'from-zinc-950 to-zinc-700 text-white dark:from-stone-100 dark:to-stone-300 dark:text-zinc-950',
+    'from-emerald-500 to-teal-600 text-white',
+    'from-amber-400 to-orange-500 text-zinc-950',
+  ][index];
 
 const getCategorySourceLabel = (
   source: 'ollama' | 'manual' | undefined,
@@ -59,9 +72,9 @@ export const TransactionsReview = () => {
   } = useFinanceData();
   const { categories } = useFinanceSettings();
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [dateRange, setDateRange] = useState<DateRange>('30');
-  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [categoryFilter, setCategoryFilter] = useState(allCategoriesFilter);
+  const [dateRange, setDateRange] = useState<TransactionDateRange>('30');
+  const [sortKey, setSortKey] = useState<TransactionSortKey>('newest');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof pageSizeOptions)[number]>(10);
@@ -84,65 +97,40 @@ export const TransactionsReview = () => {
   }, [categoryFilter, dateRange, pageSize, query, sortKey]);
 
   useEffect(() => {
-    if (categoryFilter !== 'All' && !categories.includes(categoryFilter)) {
-      setCategoryFilter('All');
+    if (
+      categoryFilter !== allCategoriesFilter &&
+      !categories.includes(categoryFilter)
+    ) {
+      setCategoryFilter(allCategoriesFilter);
     }
   }, [categories, categoryFilter]);
 
-  const filteredTransactions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const latestTimestamp = Math.max(
-      ...transactions.map((transaction) => getTimestamp(transaction.date)),
-      0,
-    );
-    const maxAgeMs =
-      dateRange === 'all'
-        ? Number.POSITIVE_INFINITY
-        : Number(dateRange) * 24 * 60 * 60 * 1000;
-
-    return transactions
-      .filter((transaction) => {
-        const category =
-          draftTransactionCategories[transaction.id] ?? transaction.category;
-        const matchesQuery =
-          !normalizedQuery ||
-          transaction.description.toLowerCase().includes(normalizedQuery);
-        const matchesCategory =
-          categoryFilter === 'All' || category === categoryFilter;
-        const timestamp = getTimestamp(transaction.date);
-        const matchesDate =
-          dateRange === 'all' ||
-          (timestamp > 0 && latestTimestamp - timestamp <= maxAgeMs);
-
-        return matchesQuery && matchesCategory && matchesDate;
-      })
-      .toSorted((left, right) => {
-        if (sortKey === 'oldest') {
-          return getTimestamp(left.date) - getTimestamp(right.date);
-        }
-
-        if (sortKey === 'amount-high') {
-          return right.amount - left.amount;
-        }
-
-        if (sortKey === 'amount-low') {
-          return left.amount - right.amount;
-        }
-
-        return getTimestamp(right.date) - getTimestamp(left.date);
-      });
-  }, [
-    categoryFilter,
-    dateRange,
-    draftTransactionCategories,
-    query,
-    sortKey,
-    transactions,
-  ]);
+  const filteredTransactions = useMemo(
+    () =>
+      getFilteredTransactions(transactions, {
+        categoryFilter,
+        dateRange,
+        draftCategories: draftTransactionCategories,
+        query,
+        sortKey,
+      }),
+    [
+      categoryFilter,
+      dateRange,
+      draftTransactionCategories,
+      query,
+      sortKey,
+      transactions,
+    ],
+  );
 
   const pageCount = Math.max(
     1,
     Math.ceil(filteredTransactions.length / pageSize),
+  );
+  const transactionSummary = useMemo(
+    () => getTransactionReviewSummary(filteredTransactions),
+    [filteredTransactions],
   );
 
   useEffect(() => {
@@ -201,6 +189,22 @@ export const TransactionsReview = () => {
     });
   };
 
+  const exportFilteredTransactions = () => {
+    if (filteredTransactions.length === 0) {
+      return;
+    }
+
+    const csv = serializeTransactionsCsv(filteredTransactions);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = getTransactionsExportFileName();
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const addManualTransaction = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -235,7 +239,16 @@ export const TransactionsReview = () => {
             <>
               <button
                 type="button"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 text-sm font-semibold transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                className="interactive-lift inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.82)] px-4 text-sm font-semibold shadow-sm backdrop-blur-xl hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                disabled={filteredTransactions.length === 0}
+                onClick={exportFilteredTransactions}
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                className="interactive-lift inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.82)] px-4 text-sm font-semibold shadow-sm backdrop-blur-xl hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
                 disabled={selectedTransactionIds.length === 0}
                 onClick={() => openDeleteDialog(selectedTransactionIds)}
               >
@@ -255,7 +268,7 @@ export const TransactionsReview = () => {
                 <DialogTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                    className="interactive-lift inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
                   >
                     <Plus className="size-4" aria-hidden="true" />
                     Add Transaction
@@ -402,7 +415,55 @@ export const TransactionsReview = () => {
           }
         />
 
-        <search className="grid gap-3 border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-3 sm:grid-cols-[minmax(14rem,1fr)_auto_auto_auto]">
+        <section className="grid gap-3 md:grid-cols-3">
+          {[
+            {
+              icon: WalletCards,
+              label: 'Filtered balance',
+              value: formatSignedCurrency(transactionSummary.totalBalance),
+              helper: `${transactionSummary.filteredCount} matching rows`,
+            },
+            {
+              icon: Layers3,
+              label: 'Expense rows',
+              value: String(transactionSummary.expenseCount),
+              helper: 'Ready for review or export',
+            },
+            {
+              icon: CheckCircle2,
+              label: 'Selected rows',
+              value: String(selectedTransactionIds.length),
+              helper: 'Bulk actions stay one tap away',
+            },
+          ].map((metric, index) => {
+            const Icon = metric.icon;
+
+            return (
+              <div
+                key={metric.label}
+                className={cn(
+                  'animate-enter overflow-hidden rounded-2xl bg-gradient-to-br p-5 shadow-[0_18px_50px_hsl(var(--foreground)/0.10)]',
+                  getQuickMetricTone(index),
+                )}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium opacity-80">
+                    {metric.label}
+                  </p>
+                  <span className="grid size-10 place-items-center rounded-full bg-white/20 text-current backdrop-blur">
+                    <Icon className="size-5" aria-hidden="true" />
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold tracking-[-0.04em]">
+                  {metric.value}
+                </p>
+                <p className="mt-1 text-sm opacity-75">{metric.helper}</p>
+              </div>
+            );
+          })}
+        </section>
+
+        <search className="animate-enter grid gap-3 rounded-2xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.82)] p-3 shadow-sm backdrop-blur-xl sm:grid-cols-[minmax(14rem,1fr)_auto_auto_auto]">
           <label className="relative min-w-0">
             <Search
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2"
@@ -424,9 +485,11 @@ export const TransactionsReview = () => {
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
             >
-              {['All', ...categories].map((category) => (
+              {[allCategoriesFilter, ...categories].map((category) => (
                 <option key={category} value={category}>
-                  {category === 'All' ? 'All Categories' : category}
+                  {category === allCategoriesFilter
+                    ? 'All Categories'
+                    : category}
                 </option>
               ))}
             </select>
@@ -441,7 +504,7 @@ export const TransactionsReview = () => {
               className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
               value={dateRange}
               onChange={(event) =>
-                setDateRange(event.target.value as DateRange)
+                setDateRange(event.target.value as TransactionDateRange)
               }
             >
               <option value="30">Last 30 Days</option>
@@ -458,7 +521,9 @@ export const TransactionsReview = () => {
             <select
               className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
               value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              onChange={(event) =>
+                setSortKey(event.target.value as TransactionSortKey)
+              }
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
@@ -468,11 +533,11 @@ export const TransactionsReview = () => {
           </label>
         </search>
 
-        <section className="flex min-h-[34rem] flex-col overflow-clip border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
+        <section className="animate-enter flex min-h-[34rem] flex-col overflow-clip rounded-3xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.86)] shadow-[0_24px_70px_hsl(var(--foreground)/0.10)] backdrop-blur-xl">
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full min-w-[62rem] border-collapse text-left text-sm">
               <caption className="sr-only">Transactions list</caption>
-              <thead className="bg-[hsl(var(--surface-low))]">
+              <thead className="sticky top-0 z-10 bg-[hsl(var(--surface-lowest)/0.94)] backdrop-blur-xl">
                 <tr className="border-b border-[hsl(var(--outline-variant))]">
                   <th scope="col" className="w-12 px-4 py-3">
                     <input
@@ -517,7 +582,7 @@ export const TransactionsReview = () => {
                   return (
                     <tr
                       key={`${transaction.id}-${transaction.date}`}
-                      className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
+                      className="border-b border-[hsl(var(--outline-variant)/0.65)] transition-colors last:border-b-0 hover:bg-[hsl(var(--surface-low)/0.75)]"
                     >
                       <td className="px-4 py-3">
                         <input
@@ -593,7 +658,7 @@ export const TransactionsReview = () => {
               </tbody>
             </table>
           </div>
-          <footer className="flex shrink-0 flex-col gap-3 border-t border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] sm:flex-row sm:items-center sm:justify-between">
+          <footer className="flex shrink-0 flex-col gap-3 border-t border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.9)] px-4 py-3 text-xs text-[hsl(var(--on-surface-variant))] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
             <span>
               Showing {visibleTransactions.length} of{' '}
               {filteredTransactions.length}

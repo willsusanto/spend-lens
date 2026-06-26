@@ -21,7 +21,7 @@ export const Panel = <T extends ElementType = 'section'>({
   return (
     <Component
       className={cn(
-        'rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]',
+        'animate-enter rounded-2xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.86)] shadow-[0_20px_60px_hsl(var(--foreground)/0.08)] backdrop-blur-xl',
         clipped && 'overflow-clip',
         className,
       )}
@@ -44,7 +44,7 @@ export const PanelHeader = ({
   return (
     <div
       className={cn(
-        'border-b border-[hsl(var(--outline-variant))] p-5',
+        'border-b border-[hsl(var(--outline-variant)/0.65)] p-5',
         className,
       )}
       {...props}

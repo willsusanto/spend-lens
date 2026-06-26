@@ -5,18 +5,18 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 0 100% 99%;
-    --foreground: 0 2% 11%;
-    --surface: 0 100% 99%;
+    --background: 32 52% 97%;
+    --foreground: 222 33% 10%;
+    --surface: 32 52% 97%;
     --surface-lowest: 0 0% 100%;
-    --surface-low: 10 24% 96%;
-    --surface-container: 10 14% 94%;
-    --surface-high: 0 8% 91%;
-    --surface-highest: 20 6% 89%;
-    --surface-tint: 280 1% 37%;
-    --outline: 260 2% 47%;
-    --outline-variant: 260 5% 78%;
-    --on-surface-variant: 240 3% 28%;
+    --surface-low: 35 45% 94%;
+    --surface-container: 32 38% 91%;
+    --surface-high: 30 24% 87%;
+    --surface-highest: 28 18% 82%;
+    --surface-tint: 222 33% 10%;
+    --outline: 228 10% 43%;
+    --outline-variant: 30 20% 83%;
+    --on-surface-variant: 226 13% 35%;
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -24,7 +24,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 0 0% 0%;
+    --primary: 222 33% 10%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 4% 93%;
@@ -43,23 +43,23 @@
     --input: 260 5% 78%;
     --ring: 0 0% 0%;
 
-    --radius: 0.25rem;
+    --radius: 1rem;
   }
 
   .dark {
     color-scheme: dark;
-    --background: 0 0% 16%;
-    --foreground: 30 14% 92%;
-    --surface: 0 0% 17%;
-    --surface-lowest: 0 0% 20%;
-    --surface-low: 0 0% 18%;
-    --surface-container: 0 0% 22%;
-    --surface-high: 0 0% 25%;
-    --surface-highest: 0 0% 30%;
-    --surface-tint: 40 10% 68%;
-    --outline: 30 5% 58%;
-    --outline-variant: 0 0% 35%;
-    --on-surface-variant: 30 8% 76%;
+    --background: 222 24% 9%;
+    --foreground: 35 35% 92%;
+    --surface: 222 23% 11%;
+    --surface-lowest: 222 20% 13%;
+    --surface-low: 222 20% 15%;
+    --surface-container: 222 18% 17%;
+    --surface-high: 222 16% 21%;
+    --surface-highest: 222 14% 27%;
+    --surface-tint: 35 35% 92%;
+    --outline: 35 10% 62%;
+    --outline-variant: 222 12% 28%;
+    --on-surface-variant: 35 15% 74%;
 
     --card: 0 0% 20%;
     --card-foreground: 30 14% 92%;
@@ -106,7 +106,13 @@ body {
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  background: hsl(var(--background));
+  background: radial-gradient(
+      circle at 15% 10%,
+      hsl(var(--primary) / 0.08),
+      transparent 28rem
+    ),
+    radial-gradient(circle at 85% 0%, hsl(22 86% 70% / 0.16), transparent 26rem),
+    hsl(var(--background));
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -144,4 +150,46 @@ select:not([multiple]) {
 
 select::-ms-expand {
   display: none;
+}
+
+@layer utilities {
+  .animate-enter {
+    animation: enter 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .interactive-lift {
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      opacity 180ms ease;
+  }
+
+  .interactive-lift:hover {
+    transform: translateY(-1px);
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.99);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-enter,
+    .interactive-lift,
+    .interactive-lift:hover {
+      animation: none;
+      transform: none;
+      transition: none;
+    }
+  }
 }
