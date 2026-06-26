@@ -69,23 +69,23 @@ export const PageHeader = ({
   return (
     <header
       className={cn(
-        'flex flex-col gap-4 md:flex-row md:items-end md:justify-between',
+        'animate-enter flex flex-col gap-4 md:flex-row md:items-end md:justify-between',
         className,
       )}
     >
       <div>
         {eyebrow}
-        <h1 className="text-2xl font-bold leading-8 md:text-3xl md:leading-9">
+        <h1 className="text-3xl font-semibold leading-9 tracking-[-0.04em] md:text-5xl md:leading-[3.25rem]">
           {title}
         </h1>
         {description ? (
-          <p className="mt-1 text-sm text-[hsl(var(--on-surface-variant))]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--on-surface-variant))]">
             {description}
           </p>
         ) : null}
         {children}
       </div>
-      {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </header>
   );
 };
