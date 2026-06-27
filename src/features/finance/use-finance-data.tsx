@@ -38,6 +38,17 @@ import {
   restoreActiveImportFromStaged,
 } from './finance-import-state';
 import { FinanceStore, localStorageFinanceStore } from './finance-store';
+import {
+  AddTransactionResult,
+  applyBulkTransactionCategory,
+  applyTransactionDetails,
+  clearDraftCategories,
+  createManualTransaction,
+  getDuplicateManualTransactionMessage,
+  ManualTransactionInput,
+  TransactionDetailsInput,
+  updateCategoryDraft,
+} from './finance-transaction-state';
 import { useFinanceSettings } from './use-finance-settings';
 
 const categorizationTimeoutMs = 1200_000;
@@ -62,17 +73,7 @@ export type FinanceSyncStatus = {
   state: FinanceSyncState;
 };
 
-export type ManualTransactionInput = {
-  date: string;
-  description: string;
-  amount: number;
-  category: string;
-};
-
-export type AddTransactionResult = {
-  message: string;
-  status: 'duplicate' | 'saved';
-};
+export type { AddTransactionResult, ManualTransactionInput };
 
 type FinanceDataContextValue = {
   activeImport: ActiveImport;
@@ -91,7 +92,7 @@ type FinanceDataContextValue = {
   message: string | null;
   saveTransactionDetails: (
     id: string,
-    details: { category: string; note: string },
+    details: TransactionDetailsInput,
   ) => void;
   stats: {
     income: number;
@@ -855,25 +856,15 @@ export const FinanceDataProvider = ({
 
   const addTransaction = useCallback(
     (input: ManualTransactionInput): AddTransactionResult => {
-      const now = Date.now();
-      const transaction: FinanceTransaction = {
-        id: `manual-${now}`,
-        date: input.date,
-        description: input.description.trim(),
-        amount: input.amount,
-        category: input.category,
-        confidence: 100,
-        direction: input.amount < 0 ? 'DB' : 'CR',
-        status: 'Approved',
-        categorizationSource: 'manual',
-      };
+      const transaction = createManualTransaction(input);
       const duplicate = findDuplicateTransaction(transaction, [
         ...transactions,
         ...stagedTransactions,
       ]);
 
       if (duplicate) {
-        const duplicateMessage = `Duplicate transaction not saved. It matches ${duplicate.description} on ${duplicate.date}.`;
+        const duplicateMessage =
+          getDuplicateManualTransactionMessage(duplicate);
 
         setMessage(duplicateMessage);
 
@@ -896,46 +887,29 @@ export const FinanceDataProvider = ({
 
   const updateTransactionCategory = useCallback(
     (id: string, category: string) => {
-      setDraftTransactionCategories((current) => {
-        const transaction = transactions.find((item) => item.id === id);
-
-        if (!transaction || transaction.category === category) {
-          const next = { ...current };
-
-          delete next[id];
-
-          return next;
-        }
-
-        return {
-          ...current,
-          [id]: category,
-        };
-      });
+      setDraftTransactionCategories((current) =>
+        updateCategoryDraft(
+          current,
+          transactions.find((item) => item.id === id),
+          id,
+          category,
+        ),
+      );
     },
     [transactions],
   );
 
   const updateStagedTransactionCategory = useCallback(
     (id: string, category: string) => {
-      setDraftStagedTransactionCategories((current) => {
-        const transaction =
+      setDraftStagedTransactionCategories((current) =>
+        updateCategoryDraft(
+          current,
           stagedTransactions.find((item) => item.id === id) ??
-          activeImport.processedTransactions.find((item) => item.id === id);
-
-        if (!transaction || transaction.category === category) {
-          const next = { ...current };
-
-          delete next[id];
-
-          return next;
-        }
-
-        return {
-          ...current,
-          [id]: category,
-        };
-      });
+            activeImport.processedTransactions.find((item) => item.id === id),
+          id,
+          category,
+        ),
+      );
     },
     [activeImport.processedTransactions, stagedTransactions],
   );
@@ -943,61 +917,24 @@ export const FinanceDataProvider = ({
   const updateTransactionsCategory = useCallback(
     (ids: string[], category: string) => {
       setTransactions((current) =>
-        current.map((transaction) => {
-          if (!ids.includes(transaction.id)) {
-            return transaction;
-          }
-
-          return applyManualCategory(
-            transaction,
-            category,
-            'Category changed during bulk transaction review.',
-          );
-        }),
+        applyBulkTransactionCategory(current, ids, category),
       );
-      setDraftTransactionCategories((current) => {
-        const next = { ...current };
-
-        ids.forEach((id) => {
-          delete next[id];
-        });
-
-        return next;
-      });
+      setDraftTransactionCategories((current) =>
+        clearDraftCategories(current, ids),
+      );
       setMessage(`Updated ${ids.length} transaction categories locally.`);
     },
     [],
   );
 
   const saveTransactionDetails = useCallback(
-    (id: string, details: { category: string; note: string }) => {
+    (id: string, details: TransactionDetailsInput) => {
       setTransactions((current) =>
-        current.map((transaction) => {
-          if (transaction.id !== id) {
-            return transaction;
-          }
-
-          const categoryChanged = details.category !== transaction.category;
-          const needsReview = details.category === 'Uncategorized';
-
-          return {
-            ...transaction,
-            category: details.category,
-            note: details.note,
-            confidence: categoryChanged
-              ? needsReview
-                ? Math.min(transaction.confidence, 31)
-                : 100
-              : transaction.confidence,
-            status: needsReview ? 'Review' : transaction.status,
-            categorizationSource: categoryChanged
-              ? 'manual'
-              : transaction.categorizationSource,
-            aiReason: categoryChanged
-              ? 'Category changed during transaction review.'
-              : transaction.aiReason,
-          };
-        }),
+        current.map((transaction) =>
+          transaction.id === id
+            ? applyTransactionDetails(transaction, details)
+            : transaction,
+        ),
       );
       setMessage('Transaction details saved locally.');
     },
