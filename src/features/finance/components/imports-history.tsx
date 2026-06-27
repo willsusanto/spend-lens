@@ -1,9 +1,8 @@
 'use client';
 
-import { Eye, Upload } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
@@ -19,6 +18,7 @@ import {
   DataTableRowHeader,
   getDataTableActionClassName,
 } from '@/components/ui/table';
+import { CsvUploadButton } from '@/features/finance/components/csv-upload-control';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { TransactionStatusBadge } from '@/features/finance/components/transaction-table-parts';
 import { FinanceStatus } from '@/features/finance/data';
@@ -47,7 +47,6 @@ const getImportStatusState = (status: FinanceStatus) => {
 export const ImportsHistory = () => {
   const { activeImport, importCsv, imports, message } = useFinanceData();
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = async (files: FileList | null) => {
     const file = files?.[0];
@@ -61,10 +60,6 @@ export const ImportsHistory = () => {
     if (result) {
       router.push(`/imports/${result.batch.id}/review`);
     }
-
-    if (inputRef.current) {
-      inputRef.current.value = '';
-    }
   };
 
   return (
@@ -74,18 +69,10 @@ export const ImportsHistory = () => {
           title="Imports"
           description="Uploaded CSV batches and categorization progress."
           actions={
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground md:self-auto">
-              <Upload className="size-4" aria-hidden="true" />
-              Upload CSV
-              <input
-                ref={inputRef}
-                className="sr-only"
-                type="file"
-                accept=".csv,text/csv"
-                disabled={activeImport.isProcessing}
-                onChange={(event) => handleFiles(event.target.files)}
-              />
-            </label>
+            <CsvUploadButton
+              disabled={activeImport.isProcessing}
+              onFilesSelected={handleFiles}
+            />
           }
         />
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { Check, FileText, Loader2, Upload } from 'lucide-react';
-import { DragEvent, useEffect, useRef, useState } from 'react';
+import { Check, FileText, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
@@ -16,6 +16,7 @@ import {
   DataTableRow,
   DataTableRowHeader,
 } from '@/components/ui/table';
+import { CsvUploadDropzone } from '@/features/finance/components/csv-upload-control';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import {
   CategorySelect,
@@ -31,7 +32,6 @@ import {
 } from '@/features/finance/duplicate-transactions';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
-import { cn } from '@/utils/cn';
 
 const dashboardTransactionColumns = [
   { key: 'date', label: 'Date' },
@@ -55,11 +55,9 @@ export const HomeDashboard = () => {
     updateStagedTransactionCategory,
   } = useFinanceData();
   const { categories } = useFinanceSettings();
-  const [isDragging, setIsDragging] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof pageSizeOptions)[number]>(10);
-  const inputRef = useRef<HTMLInputElement>(null);
   const latestImport = imports.find(
     (item) => item.id === activeImport.activeImportId,
   );
@@ -132,16 +130,6 @@ export const HomeDashboard = () => {
     }
 
     await importCsv(file);
-
-    if (inputRef.current) {
-      inputRef.current.value = '';
-    }
-  };
-
-  const handleDrop = async (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
-    await handleFiles(event.dataTransfer.files);
   };
 
   const saveLatestImport = () => {
@@ -160,34 +148,10 @@ export const HomeDashboard = () => {
           description="Import a local CSV, categorize each row, then confirm the saved ledger entries."
         />
 
-        <label
-          className={cn(
-            'group flex min-h-72 cursor-pointer flex-col items-center justify-center rounded border-2 border-dashed border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-8 text-center transition-colors hover:bg-[hsl(var(--surface-low))]',
-            isDragging &&
-              'border-[hsl(var(--foreground))] bg-[hsl(var(--surface-low))]',
-            isImporting && 'cursor-wait opacity-80',
-          )}
-          onDragEnter={() => setIsDragging(true)}
-          onDragLeave={() => setIsDragging(false)}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
-        >
-          <input
-            ref={inputRef}
-            className="sr-only"
-            type="file"
-            accept=".csv,text/csv"
-            disabled={isImporting}
-            onChange={(event) => handleFiles(event.target.files)}
-          />
-          <span className="mb-5 grid size-16 place-items-center rounded bg-[hsl(var(--surface-high))]">
-            <Upload className="size-8" aria-hidden="true" />
-          </span>
-          <span className="text-2xl font-bold leading-8">Upload CSV</span>
-          <span className="mt-2 max-w-md text-sm leading-6 text-[hsl(var(--on-surface-variant))]">
-            Drag a bank export here or click to browse. Supported format: .csv.
-          </span>
-        </label>
+        <CsvUploadDropzone
+          disabled={isImporting}
+          onFilesSelected={handleFiles}
+        />
 
         <Panel className="p-5">
           <h2 className="text-xl font-semibold">Processing</h2>
