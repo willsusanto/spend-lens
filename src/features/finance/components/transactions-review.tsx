@@ -1,15 +1,6 @@
 'use client';
 
-import {
-  Calendar,
-  CheckCircle2,
-  Download,
-  Layers3,
-  Search,
-  SlidersHorizontal,
-  Trash2,
-  WalletCards,
-} from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
@@ -22,7 +13,9 @@ import {
   SignedAmount,
   TablePaginationFooter,
 } from '@/features/finance/components/transaction-table-parts';
-import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
+import { TransactionsFilterBar } from '@/features/finance/components/transactions-filter-bar';
+import { TransactionsReviewMetrics } from '@/features/finance/components/transactions-review-metrics';
+import { pageSizeOptions } from '@/features/finance/data';
 import {
   getTransactionsExportFileName,
   serializeTransactionsCsv,
@@ -37,14 +30,6 @@ import {
 } from '@/features/finance/transaction-review-utils';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
-import { cn } from '@/utils/cn';
-
-const getQuickMetricTone = (index: number) =>
-  [
-    'from-zinc-950 to-zinc-700 text-white dark:from-stone-100 dark:to-stone-300 dark:text-zinc-950',
-    'from-emerald-500 to-teal-600 text-white',
-    'from-amber-400 to-orange-500 text-zinc-950',
-  ][index];
 
 const getCategorySourceLabel = (
   source: 'ollama' | 'manual' | undefined,
@@ -273,123 +258,24 @@ export const TransactionsReview = () => {
           }
         />
 
-        <section className="grid gap-3 md:grid-cols-3">
-          {[
-            {
-              icon: WalletCards,
-              label: 'Filtered balance',
-              value: formatSignedCurrency(transactionSummary.totalBalance),
-              helper: `${transactionSummary.filteredCount} matching rows`,
-            },
-            {
-              icon: Layers3,
-              label: 'Expense rows',
-              value: String(transactionSummary.expenseCount),
-              helper: 'Ready for review or export',
-            },
-            {
-              icon: CheckCircle2,
-              label: 'Selected rows',
-              value: String(selectedTransactionIds.length),
-              helper: 'Bulk actions stay one tap away',
-            },
-          ].map((metric, index) => {
-            const Icon = metric.icon;
+        <TransactionsReviewMetrics
+          expenseCount={transactionSummary.expenseCount}
+          filteredCount={transactionSummary.filteredCount}
+          selectedCount={selectedTransactionIds.length}
+          totalBalance={transactionSummary.totalBalance}
+        />
 
-            return (
-              <div
-                key={metric.label}
-                className={cn(
-                  'animate-enter overflow-hidden rounded-2xl bg-gradient-to-br p-5 shadow-[0_18px_50px_hsl(var(--foreground)/0.10)]',
-                  getQuickMetricTone(index),
-                )}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium opacity-80">
-                    {metric.label}
-                  </p>
-                  <span className="grid size-10 place-items-center rounded-full bg-white/20 text-current backdrop-blur">
-                    <Icon className="size-5" aria-hidden="true" />
-                  </span>
-                </div>
-                <p className="mt-4 text-3xl font-semibold tracking-[-0.04em]">
-                  {metric.value}
-                </p>
-                <p className="mt-1 text-sm opacity-75">{metric.helper}</p>
-              </div>
-            );
-          })}
-        </section>
-
-        <search className="animate-enter grid gap-3 rounded-2xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.82)] p-3 shadow-sm backdrop-blur-xl sm:grid-cols-[minmax(14rem,1fr)_auto_auto_auto]">
-          <label className="relative min-w-0">
-            <Search
-              className="absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <span className="sr-only">Search transaction details</span>
-            <input
-              className="min-h-10 w-full rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
-              placeholder="Search details..."
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <label>
-            <span className="sr-only">Category filter</span>
-            <select
-              className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-            >
-              {[allCategoriesFilter, ...categories].map((category) => (
-                <option key={category} value={category}>
-                  {category === allCategoriesFilter
-                    ? 'All Categories'
-                    : category}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="relative">
-            <Calendar
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <span className="sr-only">Date range</span>
-            <select
-              className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
-              value={dateRange}
-              onChange={(event) =>
-                setDateRange(event.target.value as TransactionDateRange)
-              }
-            >
-              <option value="30">Last 30 Days</option>
-              <option value="90">Last 90 Days</option>
-              <option value="all">All Dates</option>
-            </select>
-          </label>
-          <label className="relative">
-            <SlidersHorizontal
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <span className="sr-only">Sort transactions</span>
-            <select
-              className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] pl-9 pr-3 text-sm"
-              value={sortKey}
-              onChange={(event) =>
-                setSortKey(event.target.value as TransactionSortKey)
-              }
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="amount-high">Amount High</option>
-              <option value="amount-low">Amount Low</option>
-            </select>
-          </label>
-        </search>
+        <TransactionsFilterBar
+          categories={categories}
+          categoryFilter={categoryFilter}
+          dateRange={dateRange}
+          query={query}
+          sortKey={sortKey}
+          onCategoryFilterChange={setCategoryFilter}
+          onDateRangeChange={setDateRange}
+          onQueryChange={setQuery}
+          onSortKeyChange={setSortKey}
+        />
 
         <section className="animate-enter flex min-h-[34rem] flex-col overflow-clip rounded-3xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.86)] shadow-[0_24px_70px_hsl(var(--foreground)/0.10)] backdrop-blur-xl">
           <div className="min-h-0 flex-1 overflow-auto">
