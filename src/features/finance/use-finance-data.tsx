@@ -26,17 +26,19 @@ import {
   markDuplicateTransactions,
 } from './duplicate-transactions';
 import {
-  ActiveImport,
   applyCategoryDraftEntries,
   applyStagedCategoryDraftsToActiveImport,
   applyStagedCategoryDraftsToImports,
+  clearAppliedCategoryDrafts,
+  getAffectedStagedImportIds,
+} from './finance-category-drafts';
+import {
+  ActiveImport,
   applyStagedDeletionToActiveImport,
   applyStagedDeletionToImports,
-  clearAppliedCategoryDrafts,
   chunkTransactions,
   createImportConfirmation,
   createStagedDeletionPlan,
-  getAffectedStagedImportIds,
   ensureImportsForStagedTransactions,
   getImportBatchStatus,
   idleActiveImport,

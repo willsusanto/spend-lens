@@ -1,5 +1,5 @@
 import { FinanceTransaction } from './data';
-import { applyManualCategory } from './finance-import-state';
+import { applyManualCategory } from './finance-category-drafts';
 
 export type ManualTransactionInput = {
   amount: number;
