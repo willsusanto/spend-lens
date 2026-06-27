@@ -152,6 +152,11 @@ Most domain work is in `src/features/finance`:
   `FinanceTransaction[]`.
 - `duplicate-transactions.ts` builds duplicate signatures from normalized date,
   description, absolute amount, and CR/DB direction.
+- `finance-import-state.ts` contains import batch status rules, staged import
+  restoration, categorization chunking, and manual category application helpers.
+- `finance-transaction-state.ts` contains pure helpers for manual transaction
+  creation, draft category updates, bulk category edits, and transaction detail
+  saves.
 - `finance-settings.ts` defines default categories, default Ollama endpoint,
   default model, and normalization helpers.
 - `use-finance-settings.tsx` stores user categories and Ollama settings in
@@ -160,11 +165,23 @@ Most domain work is in `src/features/finance`:
   implementation, the API-backed implementation, and store selection.
 - `postgres-finance-store.ts` is the current server-side PostgreSQL
   implementation behind `/api/finance-store`.
+- `ollama-categorization.ts` builds the categorization prompt, parses Ollama
+  JSON responses, clamps confidence, derives categorization status, and creates
+  manual-review fallbacks for `/api/categorize`.
 - `use-finance-data.tsx` is the client-side orchestrator for loading data,
   importing CSVs, categorizing rows, staging imports, draft category edits,
   manual transactions, deletes, approvals, and confirmation.
-- `components/` contains the finance screens and feature UI.
+- `components/` contains the finance screens and feature UI. Shared
+  finance-only table/dialog/filter pieces such as `transaction-table-parts.tsx`,
+  `manual-transaction-dialog.tsx`, `delete-transactions-dialog.tsx`,
+  `transactions-filter-bar.tsx`, and `transactions-review-metrics.tsx` should be
+  reused before adding another finance table control or review dialog.
 - `__tests__/` contains finance behavior tests.
+
+The statistics feature keeps chart and aggregation math in
+`src/features/statistics/statistics-breakdown.ts`; keep new statistics
+calculations there with focused tests rather than embedding them in
+`statistics-page.tsx`.
 
 ## CSV Import Details
 
@@ -203,6 +220,11 @@ The categorization flow is deliberately local-first:
 8. Successful categorization sets `categorizationSource: 'ollama'` and records
    the model.
 9. Failures fall back to manual review instead of blocking the import.
+
+Prompt construction, Ollama response parsing, confidence clamping, and fallback
+transaction creation belong in `src/features/finance/ollama-categorization.ts`.
+Keep `/api/categorize/route.ts` focused on HTTP request validation, model
+probing, logging, and response composition.
 
 Important defaults:
 
@@ -296,8 +318,12 @@ Good candidates for focused tests:
 - New CSV bank formats and date/amount direction parsing.
 - Duplicate detection changes.
 - Import staging and confirmation rules.
+- Import status helpers in `finance-import-state.ts`.
+- Manual transaction, draft category, and detail-save helpers in
+  `finance-transaction-state.ts`.
 - Store normalization and migration behavior.
 - Ollama response parsing and fallback behavior.
+- Statistics breakdown, sorting, percentage, and chart geometry helpers.
 
 ## Common Change Patterns
 
