@@ -26,6 +26,25 @@ type ManualTransactionDialogProps = {
 const inputClassName =
   'min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm';
 
+export const sanitizeAmountInput = (value: string) => {
+  const normalizedValue = value.replace(/[^\d.]/g, '');
+  const [integerPart, ...decimalParts] = normalizedValue.split('.');
+
+  if (decimalParts.length === 0) {
+    return integerPart;
+  }
+
+  const decimalPart = decimalParts.join('').slice(0, 2);
+
+  if (!integerPart) {
+    return `0.${decimalPart}`;
+  }
+
+  return `${integerPart}.${decimalPart}`;
+};
+
+const normalizeAmountOnBlur = (value: string) => value.replace(/\.$/, '');
+
 export const ManualTransactionDialog = ({
   categories,
   message,
@@ -70,11 +89,23 @@ export const ManualTransactionDialog = ({
               Amount
               <input
                 required
-                min="0"
+                inputMode="decimal"
                 name="amount"
-                step="0.01"
-                type="number"
+                pattern="\d+(\.\d{1,2})?"
+                placeholder="0.00"
+                title="Enter a positive amount, using up to two decimal places."
+                type="text"
                 className={inputClassName}
+                onBlur={(event) => {
+                  event.currentTarget.value = normalizeAmountOnBlur(
+                    event.currentTarget.value,
+                  );
+                }}
+                onInput={(event) => {
+                  event.currentTarget.value = sanitizeAmountInput(
+                    event.currentTarget.value,
+                  );
+                }}
               />
             </label>
           </div>
