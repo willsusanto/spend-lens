@@ -5,6 +5,16 @@ import { useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { formatCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
@@ -19,6 +29,13 @@ import {
   sortCategorySlices,
 } from '@/features/statistics/statistics-breakdown';
 import { cn } from '@/utils/cn';
+
+const categorySpendingColumns = [
+  { key: 'category', label: 'Category' },
+  { align: 'right' as const, key: 'transactions', label: 'Transactions' },
+  { align: 'right' as const, key: 'spending', label: 'Spending' },
+  { align: 'right' as const, key: 'share', label: 'Share' },
+];
 
 const DonutChart = ({
   emptyLabel,
@@ -342,56 +359,38 @@ export const StatisticsPage = () => {
 
         {sortedExpenseSlices.length > 0 ? (
           <Panel clipped>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
-                <caption className="sr-only">
-                  Category spending percentages
-                </caption>
-                <thead className="bg-[hsl(var(--surface-low))]">
-                  <tr className="border-b border-[hsl(var(--outline-variant))]">
-                    {['Category', 'Transactions', 'Spending', 'Share'].map(
-                      (header) => (
-                        <th
-                          key={header}
-                          scope="col"
-                          className={cn(
-                            'px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]',
-                            header !== 'Category' && 'text-right',
-                          )}
-                        >
-                          {header}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedExpenseSlices.map((slice) => (
-                    <tr
-                      key={slice.name}
-                      className="border-b border-[hsl(var(--outline-variant))] last:border-b-0"
-                    >
-                      <th scope="row" className="px-4 py-3 font-medium">
-                        <span className="inline-flex items-center gap-2">
-                          <span
-                            className="size-3 rounded-sm"
-                            style={{ backgroundColor: slice.color }}
-                          />
-                          {slice.name}
-                        </span>
-                      </th>
-                      <td className="px-4 py-3 text-right">{slice.count}</td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {formatCurrency(slice.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {formatPercentage(slice.percentage)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              caption="Category spending percentages"
+              minWidthClassName="min-w-[42rem]"
+            >
+              <DataTableHeader>
+                <DataTableHeaderRow>
+                  <DataTableHeaderCells columns={categorySpendingColumns} />
+                </DataTableHeaderRow>
+              </DataTableHeader>
+              <DataTableBody>
+                {sortedExpenseSlices.map((slice) => (
+                  <DataTableRow key={slice.name}>
+                    <DataTableRowHeader>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="size-3 rounded-sm"
+                          style={{ backgroundColor: slice.color }}
+                        />
+                        {slice.name}
+                      </span>
+                    </DataTableRowHeader>
+                    <DataTableCell align="right">{slice.count}</DataTableCell>
+                    <DataTableCell align="right" className="font-mono">
+                      {formatCurrency(slice.amount)}
+                    </DataTableCell>
+                    <DataTableCell align="right" className="font-mono">
+                      {formatPercentage(slice.percentage)}%
+                    </DataTableCell>
+                  </DataTableRow>
+                ))}
+              </DataTableBody>
+            </DataTable>
           </Panel>
         ) : null}
       </PageContainer>

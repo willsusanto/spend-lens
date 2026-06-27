@@ -5,6 +5,17 @@ import { DragEvent, useEffect, useRef, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableEmptyRow,
+  DataTableHeader,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import {
   CategorySelect,
@@ -21,6 +32,15 @@ import {
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
+
+const dashboardTransactionColumns = [
+  { key: 'date', label: 'Date' },
+  { key: 'description', label: 'Description' },
+  { key: 'category', label: 'Category' },
+  { align: 'right' as const, key: 'amount', label: 'Amount' },
+  { key: 'status', label: 'Status' },
+  { align: 'center' as const, key: 'action', label: 'Action' },
+];
 
 export const HomeDashboard = () => {
   const {
@@ -196,133 +216,107 @@ export const HomeDashboard = () => {
           </div>
 
           <div className="mt-5 overflow-clip rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
-                <caption className="sr-only">
-                  Processed transactions from the current CSV upload
-                </caption>
-                <thead className="bg-[hsl(var(--surface-low))]">
-                  <tr className="border-b border-[hsl(var(--outline-variant))]">
-                    {[
-                      'Date',
-                      'Description',
-                      'Category',
-                      'Amount',
-                      'Status',
-                      'Action',
-                    ].map((header) => (
-                      <th
-                        key={header}
-                        scope="col"
-                        className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody aria-live="polite" aria-relevant="additions">
-                  {visibleRows.length > 0 ? (
-                    visibleRows.map((transaction) => {
-                      const isDuplicate = isDuplicateTransaction(transaction);
-                      const canDelete =
-                        stagedRowIdsForActiveImport.has(transaction.id) &&
-                        !isImporting &&
-                        !isResolvedActiveImport;
-                      const category =
-                        draftStagedTransactionCategories[transaction.id] ??
-                        transaction.category;
-                      const needsReview =
-                        !isDuplicate &&
-                        (category === 'Uncategorized' ||
-                          transaction.status === 'Review' ||
-                          transaction.confidence < 70);
+            <DataTable
+              caption="Processed transactions from the current CSV upload"
+              minWidthClassName="min-w-[48rem]"
+            >
+              <DataTableHeader>
+                <DataTableHeaderRow>
+                  <DataTableHeaderCells columns={dashboardTransactionColumns} />
+                </DataTableHeaderRow>
+              </DataTableHeader>
+              <DataTableBody aria-live="polite" aria-relevant="additions">
+                {visibleRows.length > 0 ? (
+                  visibleRows.map((transaction) => {
+                    const isDuplicate = isDuplicateTransaction(transaction);
+                    const canDelete =
+                      stagedRowIdsForActiveImport.has(transaction.id) &&
+                      !isImporting &&
+                      !isResolvedActiveImport;
+                    const category =
+                      draftStagedTransactionCategories[transaction.id] ??
+                      transaction.category;
+                    const needsReview =
+                      !isDuplicate &&
+                      (category === 'Uncategorized' ||
+                        transaction.status === 'Review' ||
+                        transaction.confidence < 70);
 
-                      return (
-                        <tr
-                          key={transaction.id}
-                          className={cn(
-                            'border-b border-[hsl(var(--outline-variant))] last:border-b-0',
-                            isDuplicate &&
-                              'bg-[hsl(var(--surface-low))] text-[hsl(var(--on-surface-variant))]',
-                          )}
-                        >
-                          <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
-                            {transaction.date}
-                          </td>
-                          <th scope="row" className="px-4 py-3 font-medium">
-                            {transaction.description}
-                          </th>
-                          <td className="px-4 py-3">
-                            {isDuplicate ? (
-                              <span className="inline-flex min-h-9 items-center rounded bg-[hsl(var(--surface-high))] px-2 text-xs font-medium">
-                                Duplicate
-                              </span>
-                            ) : (
-                              <CategorySelect
-                                ariaLabel={`Category for ${transaction.description}`}
-                                categories={categories}
-                                hasDraft={Boolean(
-                                  draftStagedTransactionCategories[
-                                    transaction.id
-                                  ],
-                                )}
-                                isInvalid={category === 'Uncategorized'}
-                                value={category}
-                                onChange={(value) =>
-                                  updateDraftCategory(transaction.id, value)
-                                }
-                              />
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right">
-                            <SignedAmount amount={transaction.amount} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <TransactionStatusBadge
-                              state={
-                                isDuplicate
-                                  ? 'duplicate'
-                                  : needsReview
-                                    ? 'needs-review'
-                                    : 'ready'
-                              }
-                              text={
-                                isDuplicate
-                                  ? 'Duplicate'
-                                  : needsReview
-                                    ? 'Needs review'
-                                    : 'Ready'
+                    return (
+                      <DataTableRow
+                        key={transaction.id}
+                        tone={isDuplicate ? 'muted' : 'default'}
+                      >
+                        <DataTableCell muted noWrap>
+                          {transaction.date}
+                        </DataTableCell>
+                        <DataTableRowHeader>
+                          {transaction.description}
+                        </DataTableRowHeader>
+                        <DataTableCell>
+                          {isDuplicate ? (
+                            <span className="inline-flex min-h-9 items-center rounded bg-[hsl(var(--surface-high))] px-2 text-xs font-medium">
+                              Duplicate
+                            </span>
+                          ) : (
+                            <CategorySelect
+                              ariaLabel={`Category for ${transaction.description}`}
+                              categories={categories}
+                              hasDraft={Boolean(
+                                draftStagedTransactionCategories[
+                                  transaction.id
+                                ],
+                              )}
+                              isInvalid={category === 'Uncategorized'}
+                              value={category}
+                              onChange={(value) =>
+                                updateDraftCategory(transaction.id, value)
                               }
                             />
-                          </td>
-                          <td className="px-4 py-3">
-                            {canDelete ? (
-                              <DeleteRowButton
-                                onClick={() =>
-                                  deleteStagedTransactions([transaction.id])
-                                }
-                              >
-                                Delete
-                              </DeleteRowButton>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-10 text-center text-sm text-[hsl(var(--on-surface-variant))]"
-                      >
-                        No processed rows yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          )}
+                        </DataTableCell>
+                        <DataTableCell align="right" noWrap>
+                          <SignedAmount amount={transaction.amount} />
+                        </DataTableCell>
+                        <DataTableCell>
+                          <TransactionStatusBadge
+                            state={
+                              isDuplicate
+                                ? 'duplicate'
+                                : needsReview
+                                  ? 'needs-review'
+                                  : 'ready'
+                            }
+                            text={
+                              isDuplicate
+                                ? 'Duplicate'
+                                : needsReview
+                                  ? 'Needs review'
+                                  : 'Ready'
+                            }
+                          />
+                        </DataTableCell>
+                        <DataTableCell align="center" className="w-16">
+                          {canDelete ? (
+                            <DeleteRowButton
+                              iconOnly
+                              onClick={() =>
+                                deleteStagedTransactions([transaction.id])
+                              }
+                              srLabel={`Delete ${transaction.description}`}
+                            />
+                          ) : null}
+                        </DataTableCell>
+                      </DataTableRow>
+                    );
+                  })
+                ) : (
+                  <DataTableEmptyRow colSpan={6}>
+                    No processed rows yet.
+                  </DataTableEmptyRow>
+                )}
+              </DataTableBody>
+            </DataTable>
             <TablePaginationFooter
               className="bg-[hsl(var(--surface-low))] backdrop-blur-none"
               itemLabel="processed rows"

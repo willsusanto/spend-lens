@@ -4,6 +4,17 @@ import { Download, Trash2 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { DeleteTransactionsDialog } from '@/features/finance/components/delete-transactions-dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { ManualTransactionDialog } from '@/features/finance/components/manual-transaction-dialog';
@@ -30,6 +41,15 @@ import {
 } from '@/features/finance/transaction-review-utils';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
+
+const transactionsReviewColumns = [
+  { key: 'date', label: 'Date' },
+  { key: 'description', label: 'Description' },
+  { key: 'category', label: 'Category' },
+  { key: 'category-source', label: 'Category Source' },
+  { align: 'right' as const, key: 'amount', label: 'Amount' },
+  { align: 'center' as const, key: 'action', label: 'Action' },
+];
 
 const getCategorySourceLabel = (
   source: 'ollama' | 'manual' | undefined,
@@ -279,11 +299,13 @@ export const TransactionsReview = () => {
 
         <section className="animate-enter flex min-h-[34rem] flex-col overflow-clip rounded-3xl border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.86)] shadow-[0_24px_70px_hsl(var(--foreground)/0.10)] backdrop-blur-xl">
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full min-w-[62rem] border-collapse text-left text-sm">
-              <caption className="sr-only">Transactions list</caption>
-              <thead className="sticky top-0 z-10 bg-[hsl(var(--surface-lowest)/0.94)] backdrop-blur-xl">
-                <tr className="border-b border-[hsl(var(--outline-variant))]">
-                  <th scope="col" className="w-12 px-4 py-3">
+            <DataTable
+              caption="Transactions list"
+              minWidthClassName="min-w-[62rem]"
+            >
+              <DataTableHeader sticky>
+                <DataTableHeaderRow>
+                  <DataTableHeaderCell className="w-12">
                     <input
                       type="checkbox"
                       className="size-4 rounded border-[hsl(var(--outline-variant))]"
@@ -291,26 +313,11 @@ export const TransactionsReview = () => {
                       checked={allVisibleSelected}
                       onChange={toggleVisibleSelection}
                     />
-                  </th>
-                  {[
-                    'Date',
-                    'Description',
-                    'Category',
-                    'Category Source',
-                    'Amount',
-                    'Action',
-                  ].map((header) => (
-                    <th
-                      key={header}
-                      scope="col"
-                      className="px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                    >
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+                  </DataTableHeaderCell>
+                  <DataTableHeaderCells columns={transactionsReviewColumns} />
+                </DataTableHeaderRow>
+              </DataTableHeader>
+              <DataTableBody>
                 {visibleTransactions.map((transaction) => {
                   const selected = selectedTransactionIds.includes(
                     transaction.id,
@@ -324,11 +331,8 @@ export const TransactionsReview = () => {
                   );
 
                   return (
-                    <tr
-                      key={`${transaction.id}-${transaction.date}`}
-                      className="border-b border-[hsl(var(--outline-variant)/0.65)] transition-colors last:border-b-0 hover:bg-[hsl(var(--surface-low)/0.75)]"
-                    >
-                      <td className="px-4 py-3">
+                    <DataTableRow key={`${transaction.id}-${transaction.date}`}>
+                      <DataTableCell>
                         <input
                           type="checkbox"
                           className="size-4 rounded border-[hsl(var(--outline-variant))]"
@@ -338,14 +342,14 @@ export const TransactionsReview = () => {
                             toggleTransactionSelection(transaction.id)
                           }
                         />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-[hsl(var(--on-surface-variant))]">
+                      </DataTableCell>
+                      <DataTableCell muted noWrap>
                         {transaction.date}
-                      </td>
-                      <th scope="row" className="px-4 py-3 font-medium">
+                      </DataTableCell>
+                      <DataTableRowHeader>
                         {transaction.description}
-                      </th>
-                      <td className="px-4 py-3">
+                      </DataTableRowHeader>
+                      <DataTableCell>
                         <CategorySelect
                           ariaLabel={`Category for ${transaction.description}`}
                           categories={transactionCategories}
@@ -358,25 +362,23 @@ export const TransactionsReview = () => {
                             updateDraftCategory(transaction.id, value)
                           }
                         />
-                      </td>
-                      <td className="px-4 py-3 text-[hsl(var(--on-surface-variant))]">
-                        {categorySourceLabel}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                      </DataTableCell>
+                      <DataTableCell muted>{categorySourceLabel}</DataTableCell>
+                      <DataTableCell align="right" noWrap>
                         <SignedAmount amount={transaction.amount} />
-                      </td>
-                      <td className="px-4 py-3">
+                      </DataTableCell>
+                      <DataTableCell align="center" className="w-16">
                         <DeleteRowButton
                           iconOnly
                           onClick={() => openDeleteDialog([transaction.id])}
                           srLabel={`Delete ${transaction.description}`}
                         />
-                      </td>
-                    </tr>
+                      </DataTableCell>
+                    </DataTableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </DataTableBody>
+            </DataTable>
           </div>
           <TablePaginationFooter
             className="shrink-0"

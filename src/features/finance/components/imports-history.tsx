@@ -7,13 +7,41 @@ import { useRef } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableEmptyRow,
+  DataTableHeader,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import { TransactionStatusBadge } from '@/features/finance/components/transaction-table-parts';
 import { FinanceStatus } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
-import { cn } from '@/utils/cn';
 
-const getStatusDotClassName = (status: FinanceStatus) =>
-  status === 'Duplicate' ? 'bg-[hsl(var(--outline))]' : 'bg-primary';
+const importsHistoryColumns = [
+  { key: 'file-name', label: 'File Name' },
+  { key: 'date', label: 'Date' },
+  { key: 'rows', label: 'Rows' },
+  { key: 'status', label: 'Status' },
+  { align: 'center' as const, key: 'action', label: 'Action' },
+];
+
+const getImportStatusState = (status: FinanceStatus) => {
+  if (status === 'Approved') {
+    return 'approved';
+  }
+
+  if (status === 'Duplicate') {
+    return 'duplicate';
+  }
+
+  return 'needs-review';
+};
 
 export const ImportsHistory = () => {
   const { activeImport, importCsv, imports, message } = useFinanceData();
@@ -67,59 +95,49 @@ export const ImportsHistory = () => {
         ) : null}
 
         <Panel clipped>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                <tr>
-                  <th className="px-4 py-3">File Name</th>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Rows</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
-                {imports.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-[hsl(var(--surface-low))]"
-                  >
-                    <td className="p-4 font-medium">{item.fileName}</td>
-                    <td className="p-4 text-[hsl(var(--on-surface-variant))]">
-                      {item.date}
-                    </td>
-                    <td className="p-4">
+          <DataTable caption="Import history" minWidthClassName="min-w-[40rem]">
+            <DataTableHeader>
+              <DataTableHeaderRow>
+                <DataTableHeaderCells columns={importsHistoryColumns} />
+              </DataTableHeaderRow>
+            </DataTableHeader>
+            <DataTableBody>
+              {imports.length > 0 ? (
+                imports.map((item) => (
+                  <DataTableRow key={item.id}>
+                    <DataTableRowHeader>{item.fileName}</DataTableRowHeader>
+                    <DataTableCell muted>{item.date}</DataTableCell>
+                    <DataTableCell>
                       {item.rows}
                       {item.duplicateRows ? (
                         <span className="ml-2 text-xs text-[hsl(var(--on-surface-variant))]">
                           {item.duplicateRows} duplicate
                         </span>
                       ) : null}
-                    </td>
-                    <td className="p-4">
-                      <span className="inline-flex items-center gap-2 rounded bg-[hsl(var(--surface-highest))] px-2 py-1 text-xs font-medium">
-                        <span
-                          className={cn(
-                            'size-2 rounded-full',
-                            getStatusDotClassName(item.status),
-                          )}
-                        />
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
+                    </DataTableCell>
+                    <DataTableCell>
+                      <TransactionStatusBadge
+                        state={getImportStatusState(item.status)}
+                        text={item.status}
+                      />
+                    </DataTableCell>
+                    <DataTableCell align="center" className="w-20">
                       <Link
                         href={`/imports/${item.id}/review`}
                         className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
                       >
                         Review
                       </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              ) : (
+                <DataTableEmptyRow colSpan={5}>
+                  No imports yet. Upload a CSV to start categorizing rows.
+                </DataTableEmptyRow>
+              )}
+            </DataTableBody>
+          </DataTable>
         </Panel>
       </PageContainer>
     </FinanceAppShell>

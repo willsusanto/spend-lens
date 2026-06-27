@@ -14,6 +14,16 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Input } from '@/components/ui/form';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { uncategorizedCategory } from '@/features/finance/finance-settings';
 import { useFinanceData } from '@/features/finance/use-finance-data';
@@ -28,6 +38,12 @@ type TestConnectionResponse = {
 
 const getCategoryType = (category: string) =>
   category === 'Income' ? 'Income' : 'Expense';
+
+const categorySettingsColumns = [
+  { key: 'category-name', label: 'Category Name' },
+  { key: 'type', label: 'Type' },
+  { align: 'right' as const, key: 'actions', label: 'Actions' },
+];
 
 export const SettingsPage = () => {
   const { activeImport, stagedTransactions, transactions } = useFinanceData();
@@ -271,79 +287,56 @@ export const SettingsPage = () => {
               </p>
             ) : null}
           </PanelHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[34rem] border-collapse text-left text-sm">
-              <caption className="sr-only">Category settings</caption>
-              <thead className="bg-[hsl(var(--surface-low))]">
-                <tr className="border-y border-[hsl(var(--outline-variant))]">
-                  <th
-                    scope="col"
-                    className="px-5 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                  >
-                    Category Name
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-5 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                  >
-                    Type
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-5 py-3 text-right text-xs font-medium uppercase tracking-[0.08em] text-[hsl(var(--on-surface-variant))]"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((category) => {
-                  const isUsed = usedCategories.has(category);
-                  const isRequired = category === uncategorizedCategory;
-                  const isLastAssignable =
-                    category !== uncategorizedCategory &&
-                    assignableCategoryCount <= 1;
-                  const deleteDisabled =
-                    isUsed || isRequired || isLastAssignable;
-                  const deleteTitle = isRequired
-                    ? 'Uncategorized is required for low-confidence imports'
-                    : isLastAssignable
-                      ? 'Keep at least one assignable category'
-                      : isUsed
-                        ? 'Cannot delete a category with existing transactions'
-                        : `Delete ${category}`;
+          <DataTable
+            caption="Category settings"
+            minWidthClassName="min-w-[34rem]"
+          >
+            <DataTableHeader>
+              <DataTableHeaderRow>
+                <DataTableHeaderCells columns={categorySettingsColumns} />
+              </DataTableHeaderRow>
+            </DataTableHeader>
+            <DataTableBody>
+              {categories.map((category) => {
+                const isUsed = usedCategories.has(category);
+                const isRequired = category === uncategorizedCategory;
+                const isLastAssignable =
+                  category !== uncategorizedCategory &&
+                  assignableCategoryCount <= 1;
+                const deleteDisabled = isUsed || isRequired || isLastAssignable;
+                const deleteTitle = isRequired
+                  ? 'Uncategorized is required for low-confidence imports'
+                  : isLastAssignable
+                    ? 'Keep at least one assignable category'
+                    : isUsed
+                      ? 'Cannot delete a category with existing transactions'
+                      : `Delete ${category}`;
 
-                  return (
-                    <tr
-                      key={category}
-                      className="border-b border-[hsl(var(--outline-variant))]"
-                    >
-                      <th scope="row" className="px-5 py-4 font-medium">
-                        {category}
-                      </th>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex rounded bg-[hsl(var(--surface-high))] px-2 py-1 text-xs">
-                          {getCategoryType(category)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          type="button"
-                          className="inline-grid min-h-8 min-w-8 place-items-center rounded text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-high))] disabled:cursor-not-allowed disabled:opacity-35"
-                          disabled={deleteDisabled}
-                          title={deleteTitle}
-                          onClick={() => deleteCategoryFromSettings(category)}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                          <span className="sr-only">Delete {category}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                return (
+                  <DataTableRow key={category}>
+                    <DataTableRowHeader>{category}</DataTableRowHeader>
+                    <DataTableCell>
+                      <span className="inline-flex rounded bg-[hsl(var(--surface-high))] px-2 py-1 text-xs">
+                        {getCategoryType(category)}
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell align="right">
+                      <button
+                        type="button"
+                        className="inline-grid min-h-8 min-w-8 place-items-center rounded text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-high))] disabled:cursor-not-allowed disabled:opacity-35"
+                        disabled={deleteDisabled}
+                        title={deleteTitle}
+                        onClick={() => deleteCategoryFromSettings(category)}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                        <span className="sr-only">Delete {category}</span>
+                      </button>
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
+            </DataTableBody>
+          </DataTable>
         </Panel>
       </PageContainer>
     </FinanceAppShell>

@@ -6,6 +6,16 @@ import { useMemo } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel } from '@/components/ui/panel';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCells,
+  DataTableHeaderRow,
+  DataTableRow,
+  DataTableRowHeader,
+} from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { MetricCard } from '@/features/finance/components/metric-card';
 import {
@@ -21,6 +31,17 @@ import {
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
+
+const importReviewColumns = [
+  { key: 'date', label: 'Date' },
+  { key: 'description', label: 'Description' },
+  { align: 'right' as const, key: 'amount', label: 'Amount' },
+  { key: 'category', label: 'Category' },
+  { key: 'confidence', label: 'Confidence' },
+  { key: 'reason', label: 'Reason' },
+  { key: 'status', label: 'Status' },
+  { align: 'center' as const, key: 'action', label: 'Action' },
+];
 
 export const ImportReview = ({ importId }: { importId: string }) => {
   const {
@@ -194,163 +215,153 @@ export const ImportReview = ({ importId }: { importId: string }) => {
             </section>
 
             <Panel clipped>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[78rem] border-collapse text-left text-sm">
-                  <thead className="bg-[hsl(var(--surface-low))] text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                    <tr className="border-b border-[hsl(var(--outline-variant))]">
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Description</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Confidence</th>
-                      <th className="px-4 py-3">Reason</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[hsl(var(--outline-variant))]">
-                    {importedTransactions.map((transaction) => {
-                      const isDuplicate = isDuplicateTransaction(transaction);
-                      const isApproved = transaction.status === 'Approved';
-                      const canDelete =
-                        stagedImportTransactionIds.has(transaction.id) &&
-                        !isResolved;
-                      const category =
-                        draftStagedTransactionCategories[transaction.id] ??
-                        transaction.category;
-                      const needsReview =
-                        !isDuplicate &&
-                        (transaction.status === 'Review' ||
-                          category === 'Uncategorized' ||
-                          transaction.confidence < 70);
+              <DataTable
+                caption="Imported transactions for review"
+                minWidthClassName="min-w-[78rem]"
+              >
+                <DataTableHeader>
+                  <DataTableHeaderRow>
+                    <DataTableHeaderCells columns={importReviewColumns} />
+                  </DataTableHeaderRow>
+                </DataTableHeader>
+                <DataTableBody>
+                  {importedTransactions.map((transaction) => {
+                    const isDuplicate = isDuplicateTransaction(transaction);
+                    const isApproved = transaction.status === 'Approved';
+                    const canDelete =
+                      stagedImportTransactionIds.has(transaction.id) &&
+                      !isResolved;
+                    const category =
+                      draftStagedTransactionCategories[transaction.id] ??
+                      transaction.category;
+                    const needsReview =
+                      !isDuplicate &&
+                      (transaction.status === 'Review' ||
+                        category === 'Uncategorized' ||
+                        transaction.confidence < 70);
 
-                      return (
-                        <tr
-                          key={transaction.id}
-                          className={cn(
-                            'transition-colors hover:bg-[hsl(var(--surface-low))]',
-                            isDuplicate &&
-                              'border-l-4 border-l-[hsl(var(--outline))] bg-[hsl(var(--surface-low))] text-[hsl(var(--on-surface-variant))]',
-                            needsReview &&
-                              'border-l-4 border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/25',
+                    return (
+                      <DataTableRow
+                        key={transaction.id}
+                        className={cn(
+                          isDuplicate &&
+                            'border-l-4 border-l-[hsl(var(--outline))]',
+                        )}
+                        tone={
+                          needsReview
+                            ? 'warning'
+                            : isDuplicate
+                              ? 'muted'
+                              : 'default'
+                        }
+                      >
+                        <DataTableCell muted noWrap>
+                          {transaction.date}
+                        </DataTableCell>
+                        <DataTableRowHeader>
+                          {isDuplicate ? (
+                            <span>{transaction.description}</span>
+                          ) : (
+                            <Link
+                              href={`/transactions/${transaction.id}`}
+                              className="hover:underline"
+                            >
+                              {transaction.description}
+                            </Link>
                           )}
-                        >
-                          <td className="whitespace-nowrap p-4 text-[hsl(var(--on-surface-variant))]">
-                            {transaction.date}
-                          </td>
-                          <td className="p-4">
-                            {isDuplicate ? (
-                              <span className="font-medium">
-                                {transaction.description}
-                              </span>
-                            ) : (
-                              <Link
-                                href={`/transactions/${transaction.id}`}
-                                className="font-medium hover:underline"
-                              >
-                                {transaction.description}
-                              </Link>
+                        </DataTableRowHeader>
+                        <DataTableCell align="right" noWrap>
+                          <SignedAmount
+                            amount={transaction.amount}
+                            className="font-medium"
+                          />
+                        </DataTableCell>
+                        <DataTableCell>
+                          <CategorySelect
+                            ariaLabel={`Category for ${transaction.description}`}
+                            categories={categories}
+                            disabled={isResolved || isDuplicate}
+                            hasDraft={Boolean(
+                              draftStagedTransactionCategories[transaction.id],
                             )}
-                          </td>
-                          <td className="p-4 text-right font-mono font-medium">
-                            <SignedAmount
-                              amount={transaction.amount}
-                              className="font-medium"
-                            />
-                          </td>
-                          <td className="p-4">
-                            <label className="grid gap-2">
-                              <span className="sr-only">
-                                Category for {transaction.description}
-                              </span>
-                              <CategorySelect
-                                ariaLabel={`Category for ${transaction.description}`}
-                                categories={categories}
-                                disabled={isResolved || isDuplicate}
-                                hasDraft={Boolean(
-                                  draftStagedTransactionCategories[
-                                    transaction.id
-                                  ],
-                                )}
-                                isInvalid={needsReview}
-                                value={category}
-                                onChange={(value) =>
-                                  updateDraftCategory(transaction.id, value)
-                                }
-                              />
-                            </label>
-                            <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
-                              {transaction.categorizationSource === 'ollama'
-                                ? transaction.ollamaModel
-                                : 'Manual review'}
-                            </p>
-                          </td>
-                          <td className="p-4">
-                            {isDuplicate ? (
-                              <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                                Skipped
-                              </span>
-                            ) : (
-                              <div className="flex min-w-28 items-center gap-3">
-                                <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
-                                  <div
-                                    className={cn(
-                                      'h-full rounded-full',
-                                      needsReview
-                                        ? 'bg-amber-500'
-                                        : 'bg-primary',
-                                    )}
-                                    style={{
-                                      inlineSize: `${transaction.confidence}%`,
-                                    }}
-                                  />
-                                </div>
-                                <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
-                                  {transaction.confidence}%
-                                </span>
+                            isInvalid={needsReview}
+                            value={category}
+                            onChange={(value) =>
+                              updateDraftCategory(transaction.id, value)
+                            }
+                          />
+                          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
+                            {transaction.categorizationSource === 'ollama'
+                              ? transaction.ollamaModel
+                              : 'Manual review'}
+                          </p>
+                        </DataTableCell>
+                        <DataTableCell>
+                          {isDuplicate ? (
+                            <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
+                              Skipped
+                            </span>
+                          ) : (
+                            <div className="flex min-w-28 items-center gap-3">
+                              <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full',
+                                    needsReview ? 'bg-amber-500' : 'bg-primary',
+                                  )}
+                                  style={{
+                                    inlineSize: `${transaction.confidence}%`,
+                                  }}
+                                />
                               </div>
-                            )}
-                          </td>
-                          <td className="max-w-xs p-4 text-xs leading-5 text-[hsl(var(--on-surface-variant))]">
-                            {transaction.aiReason ?? 'No reason returned.'}
-                          </td>
-                          <td className="p-4">
-                            <TransactionStatusBadge
-                              state={
-                                isApproved
-                                  ? 'approved'
-                                  : isDuplicate
-                                    ? 'duplicate'
-                                    : needsReview
-                                      ? 'needs-review'
-                                      : 'neutral'
+                              <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
+                                {transaction.confidence}%
+                              </span>
+                            </div>
+                          )}
+                        </DataTableCell>
+                        <DataTableCell
+                          className="max-w-xs text-xs leading-5"
+                          muted
+                        >
+                          {transaction.aiReason ?? 'No reason returned.'}
+                        </DataTableCell>
+                        <DataTableCell>
+                          <TransactionStatusBadge
+                            state={
+                              isApproved
+                                ? 'approved'
+                                : isDuplicate
+                                  ? 'duplicate'
+                                  : needsReview
+                                    ? 'needs-review'
+                                    : 'neutral'
+                            }
+                            text={
+                              isDuplicate
+                                ? 'Duplicate'
+                                : needsReview && !isApproved
+                                  ? 'Needs review'
+                                  : transaction.status
+                            }
+                          />
+                        </DataTableCell>
+                        <DataTableCell align="center" className="w-16">
+                          {canDelete ? (
+                            <DeleteRowButton
+                              iconOnly
+                              onClick={() =>
+                                deleteStagedTransactions([transaction.id])
                               }
-                              text={
-                                isDuplicate
-                                  ? 'Duplicate'
-                                  : needsReview && !isApproved
-                                    ? 'Needs review'
-                                    : transaction.status
-                              }
+                              srLabel={`Delete ${transaction.description}`}
                             />
-                          </td>
-                          <td className="p-4">
-                            {canDelete ? (
-                              <DeleteRowButton
-                                onClick={() =>
-                                  deleteStagedTransactions([transaction.id])
-                                }
-                              >
-                                Delete
-                              </DeleteRowButton>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          ) : null}
+                        </DataTableCell>
+                      </DataTableRow>
+                    );
+                  })}
+                </DataTableBody>
+              </DataTable>
             </Panel>
           </>
         ) : (
