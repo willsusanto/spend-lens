@@ -5,6 +5,7 @@ import {
   normalizeFinanceTransactions,
 } from '@/features/finance/finance-store';
 import { postgresFinanceStore } from '@/features/finance/postgres-finance-store';
+import { isSameOriginRequest } from '@/utils/request-security';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +13,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
 const toErrorResponse = (error: unknown) => {
-  console.error('[finance-store] database request failed', error);
+  console.error(
+    '[finance-store] database request failed',
+    error instanceof Error
+      ? {
+          message: error.message,
+          name: error.name,
+        }
+      : { message: 'Unknown error' },
+  );
   const message =
     error instanceof Error && error.message.includes('DATABASE_URL')
       ? error.message
@@ -21,7 +30,17 @@ const toErrorResponse = (error: unknown) => {
   return NextResponse.json({ error: message }, { status: 500 });
 };
 
-export async function GET() {
+const toForbiddenResponse = () =>
+  NextResponse.json(
+    { error: 'Cross-origin finance store requests are not allowed.' },
+    { status: 403 },
+  );
+
+export async function GET(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return toForbiddenResponse();
+  }
+
   try {
     return NextResponse.json(await postgresFinanceStore.load());
   } catch (error) {
@@ -30,6 +49,10 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return toForbiddenResponse();
+  }
+
   let body: unknown;
 
   try {

@@ -5,6 +5,8 @@ import {
   normalizeOllamaEndpoint,
   normalizeOllamaModel,
 } from '@/features/finance/finance-settings';
+import { normalizeSafeOllamaEndpoint } from '@/features/finance/ollama-endpoint-security';
+import { isSameOriginRequest } from '@/utils/request-security';
 
 export const runtime = 'nodejs';
 
@@ -22,17 +24,17 @@ type OllamaTagsResponse = {
 
 const connectionTimeoutMs = 10_000;
 
-const validateEndpoint = (endpoint: string) => {
-  const url = new URL(endpoint);
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Ollama endpoint must use http or https.');
+export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      {
+        message: 'Cross-origin Ollama test requests are not allowed.',
+        ok: false,
+      },
+      { status: 403 },
+    );
   }
 
-  return url.toString().replace(/\/+$/, '');
-};
-
-export async function POST(request: Request) {
   let body: TestOllamaRequest = {};
 
   try {
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
   let endpoint: string;
 
   try {
-    endpoint = validateEndpoint(
+    endpoint = normalizeSafeOllamaEndpoint(
       normalizeOllamaEndpoint(body.ollamaEndpoint, env.OLLAMA_ENDPOINT),
     );
   } catch (error) {

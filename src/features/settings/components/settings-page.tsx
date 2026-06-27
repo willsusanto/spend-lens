@@ -174,7 +174,7 @@ export const SettingsPage = () => {
             </h2>
             <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
               Configure your local LLM settings for auto-categorization of
-              imported transactions.
+              imported transactions. Public endpoints are blocked.
             </p>
           </PanelHeader>
           <form className="grid gap-5 p-5" onSubmit={saveConnectionSettings}>

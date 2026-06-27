@@ -241,7 +241,9 @@ Important defaults:
 
 Do not route real transaction descriptions to a remote hosted LLM unless the
 user explicitly asks for that product direction. The current design assumes a
-local Ollama server.
+local Ollama server. Server routes enforce this by accepting only local or
+private Ollama endpoints, and they should not log raw model responses because
+those can contain finance-derived content.
 
 ## Persistence
 
@@ -309,7 +311,8 @@ variables:
 The client also stores user-editable Ollama settings in localStorage and sends
 them to the server routes. Remember that `/api/categorize` runs from the Next.js
 server process, so the configured Ollama endpoint must be reachable from that
-process.
+process. Public Ollama endpoints are blocked by the server-side endpoint safety
+check.
 
 Do not commit local secrets from `.env`.
 

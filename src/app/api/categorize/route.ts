@@ -22,6 +22,8 @@ import {
   OllamaCategorizedResponse,
   OllamaGenerateFormat,
 } from '@/features/finance/ollama-categorization';
+import { normalizeSafeOllamaEndpoint } from '@/features/finance/ollama-endpoint-security';
+import { isSameOriginRequest } from '@/utils/request-security';
 
 export const runtime = 'nodejs';
 
@@ -62,9 +64,6 @@ type CategorizeResponse = {
 const logOllama = (message: string, context?: Record<string, unknown>) => {
   console.log(`[ollama] ${message}`, context ?? {});
 };
-
-const truncateForLog = (value = '', maxLength = 2_000) =>
-  value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 
 const getInstalledModel = async (endpoint: string) => {
   logOllama('Listing installed models', { endpoint });
@@ -154,13 +153,6 @@ const generateCategories = async (
     evalCount: payload.eval_count,
     totalDuration: payload.total_duration,
   });
-  logOllama('Raw generate response', {
-    endpoint,
-    model,
-    format: formatName,
-    response: truncateForLog(payload.response),
-  });
-
   if (!payload.response?.trim() && format !== 'json') {
     logOllama('Empty schema response, retrying with json mode', {
       endpoint,
@@ -182,7 +174,24 @@ const generateCategories = async (
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as CategorizeRequest;
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { error: 'Cross-origin categorization requests are not allowed.' },
+      { status: 403 },
+    );
+  }
+
+  let body: CategorizeRequest;
+
+  try {
+    body = (await request.json()) as CategorizeRequest;
+  } catch {
+    return NextResponse.json(
+      { error: 'Expected a JSON request body.' },
+      { status: 400 },
+    );
+  }
+
   const transactions = body.transactions ?? [];
 
   if (!Array.isArray(transactions)) {
@@ -204,14 +213,36 @@ export async function POST(request: Request) {
   const allowedCategories = normalizeCategories(
     requestSettings.categories ?? seedCategories,
   );
-  const endpoint = normalizeOllamaEndpoint(
-    requestSettings.ollamaEndpoint,
-    env.OLLAMA_ENDPOINT,
-  );
   const model = normalizeOllamaModel(
     requestSettings.ollamaModel,
     env.OLLAMA_MODEL,
   );
+  let endpoint: string;
+
+  try {
+    endpoint = normalizeSafeOllamaEndpoint(
+      normalizeOllamaEndpoint(
+        requestSettings.ollamaEndpoint,
+        env.OLLAMA_ENDPOINT,
+      ),
+    );
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : 'Ollama endpoint is not safe.';
+
+    logOllama('Categorization blocked before contacting Ollama', {
+      error: detail,
+      model,
+      transactionCount: transactions.length,
+    });
+
+    return NextResponse.json({
+      transactions: applyCategorizationFallback(transactions, detail),
+      source: 'manual-review',
+      status: 'Review',
+      error: detail,
+    } satisfies CategorizeResponse);
+  }
 
   logOllama('Categorization request received', {
     endpoint,
@@ -266,7 +297,7 @@ export async function POST(request: Request) {
         endpoint,
         model: activeModel,
         error: error instanceof Error ? error.message : 'Unknown error.',
-        response: truncateForLog(payload.response),
+        responseLength: payload.response?.length ?? 0,
       });
       throw error;
     }
@@ -285,7 +316,7 @@ export async function POST(request: Request) {
         expectedCount: transactions.length,
         validItemCount: result.validItemCount,
         rawItemCount: result.rawItemCount,
-        response: truncateForLog(payload.response),
+        responseLength: payload.response?.length ?? 0,
       });
     }
 
