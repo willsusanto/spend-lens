@@ -9,13 +9,7 @@ const compat = new FlatCompat({
 
 const config = [
   {
-    ignores: [
-      '.next/*',
-      'node_modules/*',
-      'public/mockServiceWorker.js',
-      'generators/*',
-      '**/*.css',
-    ],
+    ignores: ['.next/*', 'node_modules/*', 'generators/*', '**/*.css'],
   },
   ...nextVitals,
   {
