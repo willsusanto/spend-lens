@@ -166,6 +166,8 @@ Most domain work is in `src/features/finance`:
   localStorage.
 - `finance-store.ts` defines the `FinanceStore` interface, the localStorage
   implementation, the API-backed implementation, and store selection.
+- `postgres-finance-entities.ts` maps domain imports and transactions to the
+  normalized PostgreSQL row shapes used by the server store.
 - `postgres-finance-store.ts` is the current server-side PostgreSQL
   implementation behind `/api/finance-store`.
 - `ollama-categorization.ts` builds the categorization prompt, parses Ollama
@@ -270,15 +272,19 @@ Legacy `ledgerlocal.*` keys are read once and copied into the current keys when
 present. Do not remove this migration path without an explicit data migration
 decision.
 
-The current database implementation writes three JSONB state rows to the
-`spendlens_finance_state` table:
+The current database implementation uses normalized PostgreSQL tables created
+by `postgres-finance-store.ts` on startup:
 
-- `imports`
-- `stagedTransactions`
-- `transactions`
+- `spendlens_import_batches` for import history and batch review status.
+- `spendlens_finance_transactions` for both ledger and staged transactions,
+  distinguished by `transaction_state` (`ledger` or `staged`).
+- `spendlens_finance_store_sections` to record when a section has been saved,
+  so an intentionally empty database section does not fall back to seed data.
 
-On startup, the PostgreSQL store creates `spendlens_finance_state` and copies
-missing rows from the legacy `ledgerlocal_finance_state` table when it exists.
+On startup, the PostgreSQL store migrates rows from the legacy JSONB state
+tables `spendlens_finance_state` and `ledgerlocal_finance_state` when they
+exist and the normalized tables are still empty. Keep those migration paths
+unless there is an explicit data migration decision.
 
 Future Supabase work should preserve the `FinanceStore` boundary. Prefer
 replacing or adding a server-side store implementation and keeping client code
@@ -329,6 +335,7 @@ Good candidates for focused tests:
 - Manual transaction, transaction list, and detail-save helpers in
   `finance-transaction-state.ts`.
 - Store normalization and migration behavior.
+- PostgreSQL entity mapping in `postgres-finance-entities.ts`.
 - Ollama response parsing and fallback behavior.
 - Statistics breakdown, sorting, percentage, and chart geometry helpers.
 
