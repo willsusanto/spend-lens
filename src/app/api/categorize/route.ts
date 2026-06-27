@@ -13,12 +13,11 @@ import {
 } from '@/features/finance/finance-settings';
 import {
   applyCategorizationFallback,
+  applyCategorizedResponse,
   buildCategorizationPrompt,
-  clampCategorizationConfidence,
   extractCategorizedJson,
-  getCategorizationStatus,
+  getCategorizationResponseStatus,
   getFormatName,
-  isCategorizedItem,
   isObjectRecord,
   OllamaCategorizedResponse,
   OllamaGenerateFormat,
@@ -272,72 +271,34 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const byId = new Map(
-      (categorized.items ?? [])
-        .filter(isCategorizedItem)
-        .map((item) => [item.id, item]),
-    );
+    const result = applyCategorizedResponse({
+      allowedCategories,
+      model: activeModel,
+      response: categorized,
+      transactions,
+    });
 
-    if (byId.size !== transactions.length) {
+    if (result.validItemCount !== transactions.length) {
       logOllama('Generate response item count mismatch', {
         endpoint,
         model: activeModel,
         expectedCount: transactions.length,
-        validItemCount: byId.size,
-        rawItemCount: categorized.items?.length ?? 0,
+        validItemCount: result.validItemCount,
+        rawItemCount: result.rawItemCount,
         response: truncateForLog(payload.response),
       });
     }
 
-    const updatedTransactions: FinanceTransaction[] = transactions.map(
-      (transaction) => {
-        const result = byId.get(transaction.id);
-
-        if (!result) {
-          return {
-            ...transaction,
-            status: getCategorizationStatus(
-              transaction.category,
-              transaction.confidence,
-            ),
-            aiReason:
-              'Ollama did not return a category for this row; manual review needed.',
-          };
-        }
-
-        const confidence = clampCategorizationConfidence(result.confidence);
-        const category = allowedCategories.includes(result.category)
-          ? result.category
-          : 'Uncategorized';
-        const resolvedCategory =
-          confidence < 70 ? transaction.category : category;
-
-        return {
-          ...transaction,
-          category: resolvedCategory,
-          confidence,
-          status: getCategorizationStatus(resolvedCategory, confidence),
-          aiReason: result.reason,
-          categorizationSource: 'ollama',
-          ollamaModel: activeModel,
-        };
-      },
-    );
-
     logOllama('Categorization request succeeded', {
       endpoint,
       model: activeModel,
-      transactionCount: updatedTransactions.length,
+      transactionCount: result.transactions.length,
     });
 
     return NextResponse.json({
-      transactions: updatedTransactions,
+      transactions: result.transactions,
       source: 'ollama',
-      status: updatedTransactions.some(
-        (transaction) => transaction.status === 'Review',
-      )
-        ? 'Review'
-        : 'Pending',
+      status: getCategorizationResponseStatus(result.transactions),
       model: activeModel,
     } satisfies CategorizeResponse);
   } catch (error) {

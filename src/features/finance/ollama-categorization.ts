@@ -1,4 +1,8 @@
-import { FinanceTransaction, TransactionStatus } from '@/features/finance/data';
+import {
+  FinanceStatus,
+  FinanceTransaction,
+  TransactionStatus,
+} from '@/features/finance/data';
 
 export type OllamaCategorizedItem = {
   category?: string;
@@ -158,6 +162,74 @@ export const applyCategorizationFallback = (
     confidence: Math.min(transaction.confidence, 31),
     status: 'Review' satisfies TransactionStatus,
   }));
+
+export type CategorizationUpdateResult = {
+  rawItemCount: number;
+  transactions: FinanceTransaction[];
+  validItemCount: number;
+};
+
+export const applyCategorizedResponse = ({
+  allowedCategories,
+  model,
+  response,
+  transactions,
+}: {
+  allowedCategories: string[];
+  model: string;
+  response: OllamaCategorizedResponse;
+  transactions: FinanceTransaction[];
+}): CategorizationUpdateResult => {
+  const byId = new Map(
+    (response.items ?? [])
+      .filter(isCategorizedItem)
+      .map((item) => [item.id, item]),
+  );
+
+  return {
+    rawItemCount: response.items?.length ?? 0,
+    transactions: transactions.map((transaction) => {
+      const result = byId.get(transaction.id);
+
+      if (!result) {
+        return {
+          ...transaction,
+          aiReason:
+            'Ollama did not return a category for this row; manual review needed.',
+          status: getCategorizationStatus(
+            transaction.category,
+            transaction.confidence,
+          ),
+        };
+      }
+
+      const confidence = clampCategorizationConfidence(result.confidence);
+      const category = allowedCategories.includes(result.category)
+        ? result.category
+        : 'Uncategorized';
+      const resolvedCategory =
+        confidence < 70 ? transaction.category : category;
+
+      return {
+        ...transaction,
+        aiReason: result.reason,
+        categorizationSource: 'ollama',
+        category: resolvedCategory,
+        confidence,
+        ollamaModel: model,
+        status: getCategorizationStatus(resolvedCategory, confidence),
+      };
+    }),
+    validItemCount: byId.size,
+  };
+};
+
+export const getCategorizationResponseStatus = (
+  transactions: FinanceTransaction[],
+): FinanceStatus =>
+  transactions.some((transaction) => transaction.status === 'Review')
+    ? 'Review'
+    : 'Pending';
 
 export const buildCategorizationPrompt = (
   transactions: FinanceTransaction[],

@@ -3,9 +3,11 @@ import { describe, expect, test } from 'vitest';
 import { FinanceTransaction } from '@/features/finance/data';
 import {
   applyCategorizationFallback,
+  applyCategorizedResponse,
   buildCategorizationPrompt,
   clampCategorizationConfidence,
   extractCategorizedJson,
+  getCategorizationResponseStatus,
   getCategorizationStatus,
   isCategorizedItem,
   normalizeCategorizedResponse,
@@ -98,5 +100,67 @@ describe('ollama categorization helpers', () => {
       confidence: 31,
       status: 'Review',
     });
+  });
+
+  test('applies categorized responses to matching transactions', () => {
+    const result = applyCategorizedResponse({
+      allowedCategories: ['Groceries', 'Uncategorized'],
+      model: 'gemma4:12b',
+      response: {
+        items: [
+          {
+            category: 'Groceries',
+            confidence: 95,
+            id: 'matched',
+            reason: 'Cafe merchant',
+          },
+          {
+            category: 'Not Allowed',
+            confidence: 90,
+            id: 'invalid-category',
+            reason: 'Unknown category',
+          },
+        ],
+      },
+      transactions: [
+        createTransaction({ id: 'matched' }),
+        createTransaction({
+          category: 'Bills / Utilities',
+          confidence: 80,
+          id: 'missing',
+          status: 'Pending',
+        }),
+        createTransaction({ id: 'invalid-category' }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      rawItemCount: 2,
+      validItemCount: 2,
+    });
+    expect(result.transactions).toMatchObject([
+      {
+        aiReason: 'Cafe merchant',
+        category: 'Groceries',
+        confidence: 95,
+        id: 'matched',
+        ollamaModel: 'gemma4:12b',
+        status: 'Pending',
+      },
+      {
+        aiReason:
+          'Ollama did not return a category for this row; manual review needed.',
+        category: 'Bills / Utilities',
+        id: 'missing',
+        status: 'Pending',
+      },
+      {
+        aiReason: 'Unknown category',
+        category: 'Uncategorized',
+        id: 'invalid-category',
+        status: 'Review',
+      },
+    ]);
+    expect(getCategorizationResponseStatus(result.transactions)).toBe('Review');
   });
 });
