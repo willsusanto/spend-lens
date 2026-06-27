@@ -83,6 +83,204 @@ export const getImportBatchStatusAfterDeletion = (
     : 'Review';
 };
 
+export type StagedDeletionPlan =
+  | {
+      message: string;
+      status: 'empty';
+    }
+  | {
+      affectedImportIds: Set<string>;
+      deletedMessage: string;
+      duplicateOnly: boolean;
+      remainingStagedTransactions: FinanceTransaction[];
+      removableIds: Set<string>;
+      removableTransactions: FinanceTransaction[];
+      status: 'ready';
+    };
+
+export const createStagedDeletionPlan = (
+  stagedTransactions: FinanceTransaction[],
+  ids: string[],
+  options: { duplicateOnly?: boolean } = {},
+): StagedDeletionPlan => {
+  const duplicateOnly = options.duplicateOnly ?? false;
+  const requestedIds = new Set(ids);
+  const removableTransactions = stagedTransactions.filter(
+    (transaction) =>
+      requestedIds.has(transaction.id) &&
+      (!duplicateOnly || isDuplicateTransaction(transaction)),
+  );
+
+  if (removableTransactions.length === 0) {
+    return {
+      message: duplicateOnly
+        ? 'No duplicate import rows selected for deletion.'
+        : 'No import rows selected for deletion.',
+      status: 'empty',
+    };
+  }
+
+  const removableIds = new Set(
+    removableTransactions.map((transaction) => transaction.id),
+  );
+  const affectedImportIds = new Set(
+    removableTransactions
+      .map((transaction) => transaction.importId)
+      .filter((importId): importId is string => Boolean(importId)),
+  );
+
+  return {
+    affectedImportIds,
+    deletedMessage: `Deleted ${removableTransactions.length} ${
+      duplicateOnly ? 'duplicate import' : 'import'
+    } row${removableTransactions.length === 1 ? '' : 's'}.`,
+    duplicateOnly,
+    remainingStagedTransactions: stagedTransactions.filter(
+      (transaction) => !removableIds.has(transaction.id),
+    ),
+    removableIds,
+    removableTransactions,
+    status: 'ready',
+  };
+};
+
+export const applyStagedDeletionToImports = (
+  imports: ImportBatch[],
+  plan: Extract<StagedDeletionPlan, { status: 'ready' }>,
+) =>
+  imports.map((item) => {
+    if (!plan.affectedImportIds.has(item.id)) {
+      return item;
+    }
+
+    const remainingImportTransactions = plan.remainingStagedTransactions.filter(
+      (transaction) => transaction.importId === item.id,
+    );
+    const deletedImportTransactions = plan.removableTransactions.filter(
+      (transaction) => transaction.importId === item.id,
+    );
+
+    return {
+      ...item,
+      duplicateRows: remainingImportTransactions.filter(isDuplicateTransaction)
+        .length,
+      rows: remainingImportTransactions.length,
+      status: plan.duplicateOnly
+        ? getRemainingImportBatchStatus(remainingImportTransactions)
+        : getImportBatchStatusAfterDeletion(
+            remainingImportTransactions,
+            deletedImportTransactions,
+          ),
+    };
+  });
+
+export const applyStagedDeletionToActiveImport = (
+  activeImport: ActiveImport,
+  plan: Extract<StagedDeletionPlan, { status: 'ready' }>,
+): ActiveImport => {
+  if (
+    !activeImport.activeImportId ||
+    !plan.affectedImportIds.has(activeImport.activeImportId)
+  ) {
+    return activeImport;
+  }
+
+  const remainingProcessedTransactions =
+    activeImport.processedTransactions.filter(
+      (transaction) => !plan.removableIds.has(transaction.id),
+    );
+  const removedActiveTransactions = activeImport.processedTransactions.filter(
+    (transaction) => plan.removableIds.has(transaction.id),
+  );
+  const removedActiveRows = removedActiveTransactions.length;
+
+  return {
+    ...activeImport,
+    finalBatchStatus: plan.duplicateOnly
+      ? getRemainingImportBatchStatus(remainingProcessedTransactions)
+      : getImportBatchStatusAfterDeletion(
+          remainingProcessedTransactions,
+          removedActiveTransactions,
+        ),
+    message: plan.deletedMessage,
+    processedRows: Math.max(0, activeImport.processedRows - removedActiveRows),
+    processedTransactions: remainingProcessedTransactions,
+    totalRows: Math.max(0, activeImport.totalRows - removedActiveRows),
+  };
+};
+
+export type ImportConfirmationResult =
+  | {
+      message: string;
+      status: 'needs-review' | 'empty';
+    }
+  | {
+      confirmedTransactions: FinanceTransaction[];
+      duplicateTransactions: FinanceTransaction[];
+      finalMessage: string;
+      finalStatus: FinanceStatus;
+      stagedForImport: FinanceTransaction[];
+      status: 'ready';
+    };
+
+export const createImportConfirmation = (
+  stagedTransactions: FinanceTransaction[],
+  importId: string,
+): ImportConfirmationResult => {
+  const stagedForImport = stagedTransactions.filter(
+    (transaction) => transaction.importId === importId,
+  );
+  const duplicateTransactions = stagedForImport.filter(isDuplicateTransaction);
+  const saveableTransactions = stagedForImport.filter(isSaveableTransaction);
+  const allCategorized =
+    saveableTransactions.length > 0 &&
+    saveableTransactions.every(isTransactionCategorized);
+
+  if (saveableTransactions.length > 0 && !allCategorized) {
+    return {
+      message: 'Categorize every imported transaction before confirming.',
+      status: 'needs-review',
+    };
+  }
+
+  if (saveableTransactions.length === 0 && duplicateTransactions.length === 0) {
+    return {
+      message: 'No imported transactions are available to confirm.',
+      status: 'empty',
+    };
+  }
+
+  const confirmedTransactions = saveableTransactions.map((transaction) => ({
+    ...transaction,
+    status: 'Approved' as const,
+  }));
+  const finalStatus: FinanceStatus =
+    confirmedTransactions.length > 0 ? 'Approved' : 'Duplicate';
+  const finalMessage =
+    confirmedTransactions.length > 0
+      ? `Committed ${confirmedTransactions.length} non-duplicate transaction${
+          confirmedTransactions.length === 1 ? '' : 's'
+        } to the transaction table.${
+          duplicateTransactions.length > 0
+            ? ` ${duplicateTransactions.length} duplicate row${
+                duplicateTransactions.length === 1 ? '' : 's'
+              } skipped.`
+            : ''
+        }`
+      : `Skipped ${duplicateTransactions.length} duplicate row${
+          duplicateTransactions.length === 1 ? '' : 's'
+        }. No transactions were added.`;
+
+  return {
+    confirmedTransactions,
+    duplicateTransactions,
+    finalMessage,
+    finalStatus,
+    stagedForImport,
+    status: 'ready',
+  };
+};
+
 const getImportIdTimestamp = (importId: string) => {
   const timestamp = Number(importId.replace(/^import-/, ''));
 

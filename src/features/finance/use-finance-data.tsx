@@ -27,14 +27,15 @@ import {
 } from './duplicate-transactions';
 import {
   ActiveImport,
+  applyStagedDeletionToActiveImport,
+  applyStagedDeletionToImports,
   applyManualCategory,
   chunkTransactions,
+  createImportConfirmation,
+  createStagedDeletionPlan,
   ensureImportsForStagedTransactions,
   getImportBatchStatus,
-  getImportBatchStatusAfterDeletion,
-  getRemainingImportBatchStatus,
   idleActiveImport,
-  isTransactionCategorized,
   restoreActiveImportFromStaged,
 } from './finance-import-state';
 import { FinanceStore, localStorageFinanceStore } from './finance-store';
@@ -739,110 +740,23 @@ export const FinanceDataProvider = ({
 
   const deleteStagedTransactions = useCallback(
     (ids: string[], options: { duplicateOnly?: boolean } = {}) => {
-      const duplicateOnly = options.duplicateOnly ?? false;
-      const requestedIds = new Set(ids);
-      const removableTransactions = stagedTransactions.filter(
-        (transaction) =>
-          requestedIds.has(transaction.id) &&
-          (!duplicateOnly || isDuplicateTransaction(transaction)),
-      );
+      const plan = createStagedDeletionPlan(stagedTransactions, ids, options);
 
-      if (removableTransactions.length === 0) {
-        setMessage(
-          duplicateOnly
-            ? 'No duplicate import rows selected for deletion.'
-            : 'No import rows selected for deletion.',
-        );
+      if (plan.status === 'empty') {
+        setMessage(plan.message);
 
         return;
       }
 
-      const removableIds = new Set(
-        removableTransactions.map((transaction) => transaction.id),
+      setStagedTransactions(plan.remainingStagedTransactions);
+      setDraftStagedTransactionCategories((current) =>
+        clearDraftCategories(current, Array.from(plan.removableIds)),
       );
-      const affectedImportIds = new Set(
-        removableTransactions
-          .map((transaction) => transaction.importId)
-          .filter((importId): importId is string => Boolean(importId)),
+      setImports((current) => applyStagedDeletionToImports(current, plan));
+      setActiveImport((current) =>
+        applyStagedDeletionToActiveImport(current, plan),
       );
-      const remainingStagedTransactions = stagedTransactions.filter(
-        (transaction) => !removableIds.has(transaction.id),
-      );
-      const deletedMessage = `Deleted ${removableTransactions.length} ${
-        duplicateOnly ? 'duplicate import' : 'import'
-      } row${removableTransactions.length === 1 ? '' : 's'}.`;
-
-      setStagedTransactions(remainingStagedTransactions);
-      setDraftStagedTransactionCategories((current) => {
-        const next = { ...current };
-
-        removableTransactions.forEach((transaction) => {
-          delete next[transaction.id];
-        });
-
-        return next;
-      });
-      setImports((current) =>
-        current.map((item) => {
-          if (!affectedImportIds.has(item.id)) {
-            return item;
-          }
-
-          const remainingImportTransactions =
-            remainingStagedTransactions.filter(
-              (transaction) => transaction.importId === item.id,
-            );
-          const deletedImportTransactions = removableTransactions.filter(
-            (transaction) => transaction.importId === item.id,
-          );
-
-          return {
-            ...item,
-            duplicateRows: remainingImportTransactions.filter(
-              isDuplicateTransaction,
-            ).length,
-            rows: remainingImportTransactions.length,
-            status: duplicateOnly
-              ? getRemainingImportBatchStatus(remainingImportTransactions)
-              : getImportBatchStatusAfterDeletion(
-                  remainingImportTransactions,
-                  deletedImportTransactions,
-                ),
-          };
-        }),
-      );
-      setActiveImport((current) => {
-        if (
-          !current.activeImportId ||
-          !affectedImportIds.has(current.activeImportId)
-        ) {
-          return current;
-        }
-
-        const remainingProcessedTransactions =
-          current.processedTransactions.filter(
-            (transaction) => !removableIds.has(transaction.id),
-          );
-        const removedActiveTransactions = current.processedTransactions.filter(
-          (transaction) => removableIds.has(transaction.id),
-        );
-        const removedActiveRows = removedActiveTransactions.length;
-
-        return {
-          ...current,
-          finalBatchStatus: duplicateOnly
-            ? getRemainingImportBatchStatus(remainingProcessedTransactions)
-            : getImportBatchStatusAfterDeletion(
-                remainingProcessedTransactions,
-                removedActiveTransactions,
-              ),
-          message: deletedMessage,
-          processedRows: Math.max(0, current.processedRows - removedActiveRows),
-          processedTransactions: remainingProcessedTransactions,
-          totalRows: Math.max(0, current.totalRows - removedActiveRows),
-        };
-      });
-      setMessage(deletedMessage);
+      setMessage(plan.deletedMessage);
     },
     [stagedTransactions],
   );
@@ -943,70 +857,31 @@ export const FinanceDataProvider = ({
 
   const confirmImport = useCallback(
     (importId: string) => {
-      const stagedForImport = stagedTransactions.filter(
-        (transaction) => transaction.importId === importId,
+      const confirmation = createImportConfirmation(
+        stagedTransactions,
+        importId,
       );
-      const duplicateTransactions = stagedForImport.filter(
-        isDuplicateTransaction,
-      );
-      const saveableTransactions = stagedForImport.filter(
-        isSaveableTransaction,
-      );
-      const allCategorized =
-        saveableTransactions.length > 0 &&
-        saveableTransactions.every(isTransactionCategorized);
 
-      if (saveableTransactions.length > 0 && !allCategorized) {
-        setMessage('Categorize every imported transaction before confirming.');
-
+      if (confirmation.status !== 'ready') {
+        setMessage(confirmation.message);
         return;
       }
 
-      if (
-        saveableTransactions.length === 0 &&
-        duplicateTransactions.length === 0
-      ) {
-        setMessage('No imported transactions are available to confirm.');
-
-        return;
-      }
-
-      const confirmedTransactions = saveableTransactions.map((transaction) => ({
-        ...transaction,
-        status: 'Approved' as const,
-      }));
-      const finalStatus: FinanceStatus =
-        confirmedTransactions.length > 0 ? 'Approved' : 'Duplicate';
-      const finalMessage =
-        confirmedTransactions.length > 0
-          ? `Committed ${confirmedTransactions.length} non-duplicate transaction${
-              confirmedTransactions.length === 1 ? '' : 's'
-            } to the transaction table.${
-              duplicateTransactions.length > 0
-                ? ` ${duplicateTransactions.length} duplicate row${
-                    duplicateTransactions.length === 1 ? '' : 's'
-                  } skipped.`
-                : ''
-            }`
-          : `Skipped ${duplicateTransactions.length} duplicate row${
-              duplicateTransactions.length === 1 ? '' : 's'
-            }. No transactions were added.`;
-
-      if (confirmedTransactions.length > 0) {
-        setTransactions((current) => [...confirmedTransactions, ...current]);
+      if (confirmation.confirmedTransactions.length > 0) {
+        setTransactions((current) => [
+          ...confirmation.confirmedTransactions,
+          ...current,
+        ]);
       }
       setStagedTransactions((current) =>
         current.filter((transaction) => transaction.importId !== importId),
       );
-      setDraftStagedTransactionCategories((current) => {
-        const next = { ...current };
-
-        stagedForImport.forEach((transaction) => {
-          delete next[transaction.id];
-        });
-
-        return next;
-      });
+      setDraftStagedTransactionCategories((current) =>
+        clearDraftCategories(
+          current,
+          confirmation.stagedForImport.map((transaction) => transaction.id),
+        ),
+      );
       setStagedImportSyncStatuses((current) => {
         const next = { ...current };
 
@@ -1019,8 +894,8 @@ export const FinanceDataProvider = ({
           item.id === importId
             ? {
                 ...item,
-                duplicateRows: duplicateTransactions.length,
-                status: finalStatus,
+                duplicateRows: confirmation.duplicateTransactions.length,
+                status: confirmation.finalStatus,
               }
             : item,
         ),
@@ -1029,12 +904,12 @@ export const FinanceDataProvider = ({
         current.activeImportId === importId
           ? {
               ...current,
-              finalBatchStatus: finalStatus,
-              message: finalMessage,
+              finalBatchStatus: confirmation.finalStatus,
+              message: confirmation.finalMessage,
             }
           : current,
       );
-      setMessage(finalMessage);
+      setMessage(confirmation.finalMessage);
     },
     [stagedTransactions],
   );
