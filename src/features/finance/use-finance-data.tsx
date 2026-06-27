@@ -27,12 +27,16 @@ import {
 } from './duplicate-transactions';
 import {
   ActiveImport,
+  applyCategoryDraftEntries,
+  applyStagedCategoryDraftsToActiveImport,
+  applyStagedCategoryDraftsToImports,
   applyStagedDeletionToActiveImport,
   applyStagedDeletionToImports,
-  applyManualCategory,
+  clearAppliedCategoryDrafts,
   chunkTransactions,
   createImportConfirmation,
   createStagedDeletionPlan,
+  getAffectedStagedImportIds,
   ensureImportsForStagedTransactions,
   getImportBatchStatus,
   idleActiveImport,
@@ -279,32 +283,16 @@ export const FinanceDataProvider = ({
     }));
 
     const timeout = window.setTimeout(() => {
-      const entriesById = new Map(entries);
-
       setTransactions((current) =>
-        current.map((transaction) => {
-          const category = entriesById.get(transaction.id);
-
-          return category
-            ? applyManualCategory(
-                transaction,
-                category,
-                'Category changed during transaction review.',
-              )
-            : transaction;
-        }),
+        applyCategoryDraftEntries(
+          current,
+          entries,
+          'Category changed during transaction review.',
+        ),
       );
-      setDraftTransactionCategories((current) => {
-        const next = { ...current };
-
-        entries.forEach(([id, category]) => {
-          if (next[id] === category) {
-            delete next[id];
-          }
-        });
-
-        return next;
-      });
+      setDraftTransactionCategories((current) =>
+        clearAppliedCategoryDrafts(current, entries),
+      );
       setTransactionsSyncStatus({
         lastSavedAt: new Date(),
         state: 'saved',
@@ -359,21 +347,11 @@ export const FinanceDataProvider = ({
       return;
     }
 
-    const affectedImportIds = new Set<string>();
-
-    entries.forEach(([id]) => {
-      const transaction =
-        stagedTransactions.find((item) => item.id === id) ??
-        activeImport.processedTransactions.find((item) => item.id === id);
-
-      if (transaction?.importId) {
-        affectedImportIds.add(transaction.importId);
-      }
+    const affectedImportIds = getAffectedStagedImportIds({
+      activeImport,
+      entries,
+      stagedTransactions,
     });
-
-    if (affectedImportIds.size === 0 && activeImport.activeImportId) {
-      affectedImportIds.add(activeImport.activeImportId);
-    }
 
     setStagedImportSyncStatuses((current) => {
       const next = { ...current };
@@ -389,66 +367,31 @@ export const FinanceDataProvider = ({
     });
 
     const timeout = window.setTimeout(() => {
-      const entriesById = new Map(entries);
       const now = new Date();
 
       setStagedTransactions((current) => {
-        const updated = current.map((transaction) => {
-          const category = entriesById.get(transaction.id);
-
-          return category
-            ? applyManualCategory(
-                transaction,
-                category,
-                'Category changed during import staging.',
-              )
-            : transaction;
-        });
+        const updated = applyCategoryDraftEntries(
+          current,
+          entries,
+          'Category changed during import staging.',
+        );
 
         setImports((currentImports) =>
-          currentImports.map((item) =>
-            affectedImportIds.has(item.id)
-              ? {
-                  ...item,
-                  status: getImportBatchStatus(
-                    updated.filter(
-                      (transaction) => transaction.importId === item.id,
-                    ),
-                  ),
-                }
-              : item,
-          ),
+          applyStagedCategoryDraftsToImports({
+            affectedImportIds,
+            imports: currentImports,
+            stagedTransactions: updated,
+          }),
         );
 
         return updated;
       });
-      setActiveImport((current) => ({
-        ...current,
-        processedTransactions: current.processedTransactions.map(
-          (transaction) => {
-            const category = entriesById.get(transaction.id);
-
-            return category
-              ? applyManualCategory(
-                  transaction,
-                  category,
-                  'Category changed during import staging.',
-                )
-              : transaction;
-          },
-        ),
-      }));
-      setDraftStagedTransactionCategories((current) => {
-        const next = { ...current };
-
-        entries.forEach(([id, category]) => {
-          if (next[id] === category) {
-            delete next[id];
-          }
-        });
-
-        return next;
-      });
+      setActiveImport((current) =>
+        applyStagedCategoryDraftsToActiveImport(current, entries),
+      );
+      setDraftStagedTransactionCategories((current) =>
+        clearAppliedCategoryDrafts(current, entries),
+      );
       setStagedImportSyncStatuses((current) => {
         const next = { ...current };
 
@@ -466,12 +409,7 @@ export const FinanceDataProvider = ({
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [
-    activeImport.activeImportId,
-    activeImport.processedTransactions,
-    draftStagedTransactionCategories,
-    stagedTransactions,
-  ]);
+  }, [activeImport, draftStagedTransactionCategories, stagedTransactions]);
 
   useEffect(() => {
     const savedImportIds = Object.entries(stagedImportSyncStatuses)
