@@ -76,12 +76,14 @@ export const SignedAmount = ({ amount, className }: SignedAmountProps) => {
 };
 
 type TransactionStatusBadgeProps = {
+  className?: string;
   icon?: ReactNode;
   state?: 'approved' | 'duplicate' | 'neutral' | 'needs-review' | 'ready';
   text: ReactNode;
 };
 
 export const TransactionStatusBadge = ({
+  className,
   icon,
   state = 'neutral',
   text,
@@ -97,6 +99,7 @@ export const TransactionStatusBadge = ({
           'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100',
         state === 'neutral' && 'bg-[hsl(var(--surface-high))]',
         state === 'ready' && 'bg-[hsl(var(--surface-high))]',
+        className,
       )}
     >
       {icon ??

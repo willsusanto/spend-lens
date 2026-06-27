@@ -8,7 +8,11 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { formatSignedCurrency } from '@/features/finance/data';
+import {
+  CategorySelect,
+  SignedAmount,
+  TransactionStatusBadge,
+} from '@/features/finance/components/transaction-table-parts';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import { cn } from '@/utils/cn';
@@ -146,27 +150,23 @@ export const TransactionDetail = ({
           actions={
             <div className="md:text-right">
               <p className="text-2xl font-semibold leading-8">
-                {formatSignedCurrency(transaction.amount)}
+                <SignedAmount amount={transaction.amount} />
               </p>
-              <span
-                className={cn(
-                  'mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+              <TransactionStatusBadge
+                className="mt-2"
+                state={
                   transaction.status === 'Approved'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'approved'
                     : needsReview
-                      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
-                      : 'bg-[hsl(var(--surface-high))]',
-                )}
-              >
-                {transaction.status === 'Approved' ? (
-                  <Check className="size-3.5" aria-hidden="true" />
-                ) : (
-                  <span className="size-1.5 rounded-full bg-current" />
-                )}
-                {needsReview && transaction.status !== 'Approved'
-                  ? 'Needs review'
-                  : transaction.status}
-              </span>
+                      ? 'needs-review'
+                      : 'neutral'
+                }
+                text={
+                  needsReview && transaction.status !== 'Approved'
+                    ? 'Needs review'
+                    : transaction.status
+                }
+              />
             </div>
           }
         />
@@ -180,17 +180,13 @@ export const TransactionDetail = ({
               <div className="grid gap-5 p-5">
                 <label className="grid gap-2">
                   <span className="text-sm font-medium">Category</span>
-                  <select
-                    className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-3 text-sm"
+                  <CategorySelect
+                    ariaLabel="Transaction category"
                     value={category}
-                    onChange={(event) => setCategory(event.target.value)}
-                  >
-                    {categories.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                    categories={categories}
+                    size="md"
+                    onChange={setCategory}
+                  />
                 </label>
 
                 <label className="grid gap-2">
@@ -268,7 +264,10 @@ export const TransactionDetail = ({
                         </span>
                       </span>
                       <span className="shrink-0 font-mono text-xs">
-                        {formatSignedCurrency(item.amount)}
+                        <SignedAmount
+                          amount={item.amount}
+                          className="text-xs"
+                        />
                       </span>
                     </Link>
                   ))
