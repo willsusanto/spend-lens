@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Download,
   Layers3,
-  Plus,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -14,17 +13,9 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { DeleteTransactionsDialog } from '@/features/finance/components/delete-transactions-dialog';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
+import { ManualTransactionDialog } from '@/features/finance/components/manual-transaction-dialog';
 import {
   CategorySelect,
   DeleteRowButton,
@@ -259,7 +250,9 @@ export const TransactionsReview = () => {
                 <Trash2 className="size-4" aria-hidden="true" />
                 Delete Selected
               </button>
-              <Dialog
+              <ManualTransactionDialog
+                categories={transactionCategories}
+                message={manualTransactionMessage}
                 open={dialogOpen}
                 onOpenChange={(open) => {
                   setDialogOpen(open);
@@ -268,153 +261,14 @@ export const TransactionsReview = () => {
                     setManualTransactionMessage(null);
                   }
                 }}
-              >
-                <DialogTrigger asChild>
-                  <button
-                    type="button"
-                    className="interactive-lift inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
-                  >
-                    <Plus className="size-4" aria-hidden="true" />
-                    Add Transaction
-                  </button>
-                </DialogTrigger>
-                <DialogContent className="rounded border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-                  <DialogHeader>
-                    <DialogTitle>Add Transaction</DialogTitle>
-                    <DialogDescription>
-                      Create a manual local ledger entry.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form
-                    id="manual-transaction-form"
-                    className="grid gap-4"
-                    onSubmit={addManualTransaction}
-                  >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="grid gap-2 text-sm font-medium">
-                        Date
-                        <input
-                          required
-                          name="date"
-                          type="date"
-                          className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm font-medium">
-                        Amount
-                        <input
-                          required
-                          min="0"
-                          name="amount"
-                          step="0.01"
-                          type="number"
-                          className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                        />
-                      </label>
-                    </div>
-                    <label className="grid gap-2 text-sm font-medium">
-                      Description
-                      <input
-                        required
-                        name="details"
-                        className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                      />
-                    </label>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="grid gap-2 text-sm font-medium">
-                        Category
-                        <select
-                          required
-                          name="category"
-                          className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                        >
-                          {transactionCategories.map((category) => (
-                            <option key={category} value={category}>
-                              {category}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="grid gap-2 text-sm font-medium">
-                        Type
-                        <select
-                          required
-                          name="type"
-                          defaultValue="expense"
-                          className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                        >
-                          <option value="expense">Expense</option>
-                          <option value="income">Income</option>
-                        </select>
-                      </label>
-                    </div>
-                    {manualTransactionMessage ? (
-                      <p
-                        aria-live="polite"
-                        className={cn(
-                          'rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-low))] px-3 py-2 text-sm text-[hsl(var(--on-surface-variant))]',
-                          manualTransactionMessage.startsWith('Duplicate') &&
-                            'border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100',
-                        )}
-                      >
-                        {manualTransactionMessage}
-                      </p>
-                    ) : null}
-                  </form>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <button
-                        type="button"
-                        className="min-h-10 rounded border border-[hsl(var(--outline-variant))] px-4 text-sm font-medium"
-                      >
-                        Cancel
-                      </button>
-                    </DialogClose>
-                    <button
-                      type="submit"
-                      form="manual-transaction-form"
-                      className="min-h-10 rounded bg-primary px-4 text-sm font-semibold text-primary-foreground"
-                    >
-                      Save Transaction
-                    </button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              <Dialog
+                onSubmit={addManualTransaction}
+              />
+              <DeleteTransactionsDialog
+                transactionCount={pendingDeleteIds.length}
                 open={deleteDialogOpen}
                 onOpenChange={setDeleteDialogOpen}
-              >
-                <DialogContent className="rounded border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))]">
-                  <DialogHeader>
-                    <DialogTitle>Delete Transaction</DialogTitle>
-                    <DialogDescription>
-                      Delete {pendingDeleteIds.length}{' '}
-                      {pendingDeleteIds.length === 1
-                        ? 'transaction'
-                        : 'transactions'}
-                      ? This cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <button
-                        type="button"
-                        className="min-h-10 rounded border border-[hsl(var(--outline-variant))] px-4 text-sm font-medium"
-                      >
-                        Cancel
-                      </button>
-                    </DialogClose>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-destructive px-4 text-sm font-semibold text-destructive-foreground"
-                      onClick={confirmDelete}
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Delete
-                    </button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                onConfirm={confirmDelete}
+              />
             </>
           }
         />
