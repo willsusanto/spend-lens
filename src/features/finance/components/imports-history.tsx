@@ -1,6 +1,6 @@
 'use client';
 
-import { Upload } from 'lucide-react';
+import { Eye, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
@@ -17,6 +17,7 @@ import {
   DataTableHeaderRow,
   DataTableRow,
   DataTableRowHeader,
+  getDataTableActionClassName,
 } from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { TransactionStatusBadge } from '@/features/finance/components/transaction-table-parts';
@@ -121,12 +122,14 @@ export const ImportsHistory = () => {
                         text={item.status}
                       />
                     </DataTableCell>
-                    <DataTableCell align="center" className="w-20">
+                    <DataTableCell align="center" className="w-16">
                       <Link
+                        aria-label={`Review ${item.fileName}`}
                         href={`/imports/${item.id}/review`}
-                        className="rounded border border-[hsl(var(--outline-variant))] px-2 py-1 text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
+                        className={getDataTableActionClassName()}
+                        title={`Review ${item.fileName}`}
                       >
-                        Review
+                        <Eye className="size-3.5" aria-hidden="true" />
                       </Link>
                     </DataTableCell>
                   </DataTableRow>

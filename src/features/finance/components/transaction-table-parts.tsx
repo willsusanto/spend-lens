@@ -1,6 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { ReactNode } from 'react';
 
+import { DataTableActionButton } from '@/components/ui/table';
 import { formatSignedCurrency, pageSizeOptions } from '@/features/finance/data';
 import { cn } from '@/utils/cn';
 
@@ -135,20 +136,29 @@ export const DeleteRowButton = ({
   onClick,
   srLabel,
 }: DeleteRowButtonProps) => {
+  if (iconOnly) {
+    return (
+      <DataTableActionButton
+        className={className}
+        icon={<Trash2 className="size-3.5" aria-hidden="true" />}
+        label={srLabel ?? 'Delete row'}
+        onClick={onClick}
+      />
+    );
+  }
+
   return (
     <button
       type="button"
       className={cn(
         'min-h-8 rounded border border-[hsl(var(--outline-variant))] text-xs font-medium transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40',
-        iconOnly
-          ? 'grid min-w-8 place-items-center px-0'
-          : 'inline-flex items-center gap-1.5 px-2',
+        'inline-flex items-center gap-1.5 px-2',
         className,
       )}
       onClick={onClick}
     >
       <Trash2 className="size-3.5" aria-hidden="true" />
-      {iconOnly ? null : children}
+      {children}
       {srLabel ? <span className="sr-only">{srLabel}</span> : null}
     </button>
   );

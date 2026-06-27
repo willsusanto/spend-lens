@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/form';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import {
   DataTable,
+  DataTableActionButton,
   DataTableBody,
   DataTableCell,
   DataTableHeader,
@@ -321,16 +322,13 @@ export const SettingsPage = () => {
                       </span>
                     </DataTableCell>
                     <DataTableCell align="right">
-                      <button
-                        type="button"
-                        className="inline-grid min-h-8 min-w-8 place-items-center rounded text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-high))] disabled:cursor-not-allowed disabled:opacity-35"
+                      <DataTableActionButton
                         disabled={deleteDisabled}
+                        icon={<Trash2 className="size-4" aria-hidden="true" />}
+                        label={`Delete ${category}`}
                         title={deleteTitle}
                         onClick={() => deleteCategoryFromSettings(category)}
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                        <span className="sr-only">Delete {category}</span>
-                      </button>
+                      />
                     </DataTableCell>
                   </DataTableRow>
                 );

@@ -4,6 +4,9 @@ import { cn } from '@/utils/cn';
 
 type DataTableAlign = 'center' | 'left' | 'right';
 
+const dataTableActionClassName =
+  'inline-grid min-h-8 min-w-8 place-items-center rounded border border-[hsl(var(--outline-variant))] text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-low))] disabled:cursor-not-allowed disabled:opacity-35';
+
 const tableAlignClassNames: Record<DataTableAlign, string> = {
   center: 'text-center',
   left: 'text-left',
@@ -186,6 +189,38 @@ export const DataTableCell = ({
       )}
       {...props}
     />
+  );
+};
+
+export const getDataTableActionClassName = (className?: string) =>
+  cn(dataTableActionClassName, className);
+
+type DataTableActionButtonProps = Omit<
+  ComponentPropsWithoutRef<'button'>,
+  'children'
+> & {
+  icon: ReactNode;
+  label: string;
+};
+
+export const DataTableActionButton = ({
+  className,
+  icon,
+  label,
+  title = label,
+  type = 'button',
+  ...props
+}: DataTableActionButtonProps) => {
+  return (
+    <button
+      aria-label={label}
+      className={getDataTableActionClassName(className)}
+      title={title}
+      type={type}
+      {...props}
+    >
+      {icon}
+    </button>
   );
 };
 
