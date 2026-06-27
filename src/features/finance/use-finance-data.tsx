@@ -43,8 +43,12 @@ import {
   AddTransactionResult,
   applyBulkTransactionCategory,
   applyTransactionDetails,
+  approveTransactionsById,
   clearDraftCategories,
   createManualTransaction,
+  deleteTransactionsById,
+  FinanceTransactionStats,
+  getFinanceTransactionStats,
   getDuplicateManualTransactionMessage,
   ManualTransactionInput,
   TransactionDetailsInput,
@@ -95,11 +99,7 @@ type FinanceDataContextValue = {
     id: string,
     details: TransactionDetailsInput,
   ) => void;
-  stats: {
-    income: number;
-    needsReview: number;
-    spending: number;
-  };
+  stats: FinanceTransactionStats;
   stagedTransactions: FinanceTransaction[];
   stagedImportSyncStatuses: Record<string, FinanceSyncStatus>;
   transactions: FinanceTransaction[];
@@ -699,40 +699,18 @@ export const FinanceDataProvider = ({
   );
 
   const approveTransaction = useCallback((id: string) => {
-    setTransactions((current) =>
-      current.map((transaction) =>
-        transaction.id === id
-          ? { ...transaction, status: 'Approved' }
-          : transaction,
-      ),
-    );
+    setTransactions((current) => approveTransactionsById(current, [id]));
   }, []);
 
   const approveTransactions = useCallback((ids: string[]) => {
-    setTransactions((current) =>
-      current.map((transaction) =>
-        ids.includes(transaction.id)
-          ? { ...transaction, status: 'Approved' }
-          : transaction,
-      ),
-    );
+    setTransactions((current) => approveTransactionsById(current, ids));
   }, []);
 
   const deleteTransactions = useCallback((ids: string[]) => {
-    const idSet = new Set(ids);
-
-    setTransactions((current) =>
-      current.filter((transaction) => !idSet.has(transaction.id)),
+    setTransactions((current) => deleteTransactionsById(current, ids));
+    setDraftTransactionCategories((current) =>
+      clearDraftCategories(current, ids),
     );
-    setDraftTransactionCategories((current) => {
-      const next = { ...current };
-
-      ids.forEach((id) => {
-        delete next[id];
-      });
-
-      return next;
-    });
     setMessage(
       `Deleted ${ids.length} transaction${ids.length === 1 ? '' : 's'}.`,
     );
@@ -914,19 +892,10 @@ export const FinanceDataProvider = ({
     [stagedTransactions],
   );
 
-  const stats = useMemo(() => {
-    const spending = transactions
-      .filter((transaction) => transaction.amount < 0)
-      .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
-    const income = transactions
-      .filter((transaction) => transaction.amount > 0)
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
-    const needsReview = transactions.filter(
-      (transaction) => transaction.status === 'Review',
-    ).length;
-
-    return { spending, income, needsReview };
-  }, [transactions]);
+  const stats = useMemo(
+    () => getFinanceTransactionStats(transactions),
+    [transactions],
+  );
 
   const value = useMemo(
     () => ({

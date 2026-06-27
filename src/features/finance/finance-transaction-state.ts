@@ -18,6 +18,12 @@ export type TransactionDetailsInput = {
   note: string;
 };
 
+export type FinanceTransactionStats = {
+  income: number;
+  needsReview: number;
+  spending: number;
+};
+
 export const createManualTransaction = (
   input: ManualTransactionInput,
   now = Date.now(),
@@ -69,6 +75,47 @@ export const clearDraftCategories = (
   });
 
   return next;
+};
+
+export const approveTransactionsById = (
+  transactions: FinanceTransaction[],
+  ids: string[],
+) => {
+  const idSet = new Set(ids);
+
+  return transactions.map((transaction) =>
+    idSet.has(transaction.id)
+      ? {
+          ...transaction,
+          status: 'Approved' as const,
+        }
+      : transaction,
+  );
+};
+
+export const deleteTransactionsById = (
+  transactions: FinanceTransaction[],
+  ids: string[],
+) => {
+  const idSet = new Set(ids);
+
+  return transactions.filter((transaction) => !idSet.has(transaction.id));
+};
+
+export const getFinanceTransactionStats = (
+  transactions: FinanceTransaction[],
+): FinanceTransactionStats => {
+  const spending = transactions
+    .filter((transaction) => transaction.amount < 0)
+    .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+  const income = transactions
+    .filter((transaction) => transaction.amount > 0)
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const needsReview = transactions.filter(
+    (transaction) => transaction.status === 'Review',
+  ).length;
+
+  return { income, needsReview, spending };
 };
 
 export const applyBulkTransactionCategory = (

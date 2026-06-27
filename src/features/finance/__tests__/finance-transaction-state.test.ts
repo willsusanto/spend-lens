@@ -4,8 +4,11 @@ import { FinanceTransaction } from '@/features/finance/data';
 import {
   applyBulkTransactionCategory,
   applyTransactionDetails,
+  approveTransactionsById,
   clearDraftCategories,
   createManualTransaction,
+  deleteTransactionsById,
+  getFinanceTransactionStats,
   getDuplicateManualTransactionMessage,
   updateCategoryDraft,
 } from '@/features/finance/finance-transaction-state';
@@ -103,6 +106,35 @@ describe('finance transaction state helpers', () => {
     ).toEqual({
       one: 'A',
       three: 'C',
+    });
+  });
+
+  test('approves and deletes transactions by id', () => {
+    const transactions = [
+      createTransaction({ id: 'one', status: 'Review' }),
+      createTransaction({ id: 'two', status: 'Pending' }),
+    ];
+
+    expect(approveTransactionsById(transactions, ['one'])).toMatchObject([
+      { id: 'one', status: 'Approved' },
+      { id: 'two', status: 'Pending' },
+    ]);
+    expect(deleteTransactionsById(transactions, ['two'])).toMatchObject([
+      { id: 'one' },
+    ]);
+  });
+
+  test('summarizes finance transaction totals', () => {
+    expect(
+      getFinanceTransactionStats([
+        createTransaction({ amount: -100, id: 'expense' }),
+        createTransaction({ amount: 250, id: 'income' }),
+        createTransaction({ amount: -25, id: 'review', status: 'Review' }),
+      ]),
+    ).toEqual({
+      income: 250,
+      needsReview: 1,
+      spending: 125,
     });
   });
 
