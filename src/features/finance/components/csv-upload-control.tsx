@@ -60,6 +60,7 @@ export const CsvUploadButton = ({
 }: CsvUploadButtonProps) => {
   return (
     <label
+      aria-disabled={disabled}
       className={cn(
         'inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity md:self-auto',
         disabled && 'cursor-not-allowed opacity-60',
@@ -86,6 +87,23 @@ export const CsvUploadDropzone = ({
 }: CsvUploadDropzoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
+  const handleDragEnter = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+
+    if (!disabled) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+  };
+
   const handleDrop = async (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setIsDragging(false);
@@ -99,15 +117,16 @@ export const CsvUploadDropzone = ({
 
   return (
     <label
+      aria-disabled={disabled}
       className={cn(
         'group flex min-h-72 cursor-pointer flex-col items-center justify-center rounded border-2 border-dashed border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] p-8 text-center transition-colors hover:bg-[hsl(var(--surface-low))]',
         isDragging &&
           'border-[hsl(var(--foreground))] bg-[hsl(var(--surface-low))]',
         disabled && 'cursor-wait opacity-80',
       )}
-      onDragEnter={() => setIsDragging(true)}
-      onDragLeave={() => setIsDragging(false)}
-      onDragOver={(event) => event.preventDefault()}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       <CsvUploadInput disabled={disabled} onFilesSelected={onFilesSelected} />
