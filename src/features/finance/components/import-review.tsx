@@ -10,6 +10,7 @@ import {
   DataTable,
   DataTableBody,
   DataTableCell,
+  DataTableEmptyRow,
   DataTableHeader,
   DataTableHeaderCells,
   DataTableHeaderRow,
@@ -225,141 +226,151 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                   </DataTableHeaderRow>
                 </DataTableHeader>
                 <DataTableBody>
-                  {importedTransactions.map((transaction) => {
-                    const isDuplicate = isDuplicateTransaction(transaction);
-                    const isApproved = transaction.status === 'Approved';
-                    const canDelete =
-                      stagedImportTransactionIds.has(transaction.id) &&
-                      !isResolved;
-                    const category =
-                      draftStagedTransactionCategories[transaction.id] ??
-                      transaction.category;
-                    const needsReview =
-                      !isDuplicate &&
-                      (transaction.status === 'Review' ||
-                        category === 'Uncategorized' ||
-                        transaction.confidence < 70);
+                  {importedTransactions.length > 0 ? (
+                    importedTransactions.map((transaction) => {
+                      const isDuplicate = isDuplicateTransaction(transaction);
+                      const isApproved = transaction.status === 'Approved';
+                      const canDelete =
+                        stagedImportTransactionIds.has(transaction.id) &&
+                        !isResolved;
+                      const category =
+                        draftStagedTransactionCategories[transaction.id] ??
+                        transaction.category;
+                      const needsReview =
+                        !isDuplicate &&
+                        (transaction.status === 'Review' ||
+                          category === 'Uncategorized' ||
+                          transaction.confidence < 70);
 
-                    return (
-                      <DataTableRow
-                        key={transaction.id}
-                        className={cn(
-                          isDuplicate &&
-                            'border-l-4 border-l-[hsl(var(--outline))]',
-                        )}
-                        tone={
-                          needsReview
-                            ? 'warning'
-                            : isDuplicate
-                              ? 'muted'
-                              : 'default'
-                        }
-                      >
-                        <DataTableCell muted noWrap>
-                          {transaction.date}
-                        </DataTableCell>
-                        <DataTableRowHeader>
-                          {isDuplicate ? (
-                            <span>{transaction.description}</span>
-                          ) : (
-                            <Link
-                              href={`/transactions/${transaction.id}`}
-                              className="hover:underline"
-                            >
-                              {transaction.description}
-                            </Link>
+                      return (
+                        <DataTableRow
+                          key={transaction.id}
+                          className={cn(
+                            isDuplicate &&
+                              'border-l-4 border-l-[hsl(var(--outline))]',
                           )}
-                        </DataTableRowHeader>
-                        <DataTableCell align="right" noWrap>
-                          <SignedAmount
-                            amount={transaction.amount}
-                            className="font-medium"
-                          />
-                        </DataTableCell>
-                        <DataTableCell>
-                          <CategorySelect
-                            ariaLabel={`Category for ${transaction.description}`}
-                            categories={categories}
-                            disabled={isResolved || isDuplicate}
-                            hasDraft={Boolean(
-                              draftStagedTransactionCategories[transaction.id],
-                            )}
-                            isInvalid={needsReview}
-                            value={category}
-                            onChange={(value) =>
-                              updateDraftCategory(transaction.id, value)
-                            }
-                          />
-                          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
-                            {transaction.categorizationSource === 'ollama'
-                              ? transaction.ollamaModel
-                              : 'Manual review'}
-                          </p>
-                        </DataTableCell>
-                        <DataTableCell>
-                          {isDuplicate ? (
-                            <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
-                              Skipped
-                            </span>
-                          ) : (
-                            <div className="flex min-w-28 items-center gap-3">
-                              <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full',
-                                    needsReview ? 'bg-amber-500' : 'bg-primary',
-                                  )}
-                                  style={{
-                                    inlineSize: `${transaction.confidence}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
-                                {transaction.confidence}%
-                              </span>
-                            </div>
-                          )}
-                        </DataTableCell>
-                        <DataTableCell
-                          className="max-w-xs text-xs leading-5"
-                          muted
+                          tone={
+                            needsReview
+                              ? 'warning'
+                              : isDuplicate
+                                ? 'muted'
+                                : 'default'
+                          }
                         >
-                          {transaction.aiReason ?? 'No reason returned.'}
-                        </DataTableCell>
-                        <DataTableCell>
-                          <TransactionStatusBadge
-                            state={
-                              isApproved
-                                ? 'approved'
-                                : isDuplicate
-                                  ? 'duplicate'
-                                  : needsReview
-                                    ? 'needs-review'
-                                    : 'neutral'
-                            }
-                            text={
-                              isDuplicate
-                                ? 'Duplicate'
-                                : needsReview && !isApproved
-                                  ? 'Needs review'
-                                  : transaction.status
-                            }
-                          />
-                        </DataTableCell>
-                        <DataTableCell align="center" className="w-16">
-                          {canDelete ? (
-                            <DeleteRowButton
-                              iconOnly
-                              onClick={() =>
-                                deleteStagedTransactions([transaction.id])
-                              }
-                              srLabel={`Delete ${transaction.description}`}
+                          <DataTableCell muted noWrap>
+                            {transaction.date}
+                          </DataTableCell>
+                          <DataTableRowHeader>
+                            {isDuplicate ? (
+                              <span>{transaction.description}</span>
+                            ) : (
+                              <Link
+                                href={`/transactions/${transaction.id}`}
+                                className="hover:underline"
+                              >
+                                {transaction.description}
+                              </Link>
+                            )}
+                          </DataTableRowHeader>
+                          <DataTableCell align="right" noWrap>
+                            <SignedAmount
+                              amount={transaction.amount}
+                              className="font-medium"
                             />
-                          ) : null}
-                        </DataTableCell>
-                      </DataTableRow>
-                    );
-                  })}
+                          </DataTableCell>
+                          <DataTableCell>
+                            <CategorySelect
+                              ariaLabel={`Category for ${transaction.description}`}
+                              categories={categories}
+                              disabled={isResolved || isDuplicate}
+                              hasDraft={Boolean(
+                                draftStagedTransactionCategories[
+                                  transaction.id
+                                ],
+                              )}
+                              isInvalid={needsReview}
+                              value={category}
+                              onChange={(value) =>
+                                updateDraftCategory(transaction.id, value)
+                              }
+                            />
+                            <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.08em] text-[hsl(var(--outline))]">
+                              {transaction.categorizationSource === 'ollama'
+                                ? transaction.ollamaModel
+                                : 'Manual review'}
+                            </p>
+                          </DataTableCell>
+                          <DataTableCell>
+                            {isDuplicate ? (
+                              <span className="text-xs font-medium text-[hsl(var(--on-surface-variant))]">
+                                Skipped
+                              </span>
+                            ) : (
+                              <div className="flex min-w-28 items-center gap-3">
+                                <div className="h-1.5 flex-1 overflow-clip rounded-full bg-[hsl(var(--surface-highest))]">
+                                  <div
+                                    className={cn(
+                                      'h-full rounded-full',
+                                      needsReview
+                                        ? 'bg-amber-500'
+                                        : 'bg-primary',
+                                    )}
+                                    style={{
+                                      inlineSize: `${transaction.confidence}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="w-10 text-right font-mono text-xs text-[hsl(var(--on-surface-variant))]">
+                                  {transaction.confidence}%
+                                </span>
+                              </div>
+                            )}
+                          </DataTableCell>
+                          <DataTableCell
+                            className="max-w-xs text-xs leading-5"
+                            muted
+                          >
+                            {transaction.aiReason ?? 'No reason returned.'}
+                          </DataTableCell>
+                          <DataTableCell>
+                            <TransactionStatusBadge
+                              state={
+                                isApproved
+                                  ? 'approved'
+                                  : isDuplicate
+                                    ? 'duplicate'
+                                    : needsReview
+                                      ? 'needs-review'
+                                      : 'neutral'
+                              }
+                              text={
+                                isDuplicate
+                                  ? 'Duplicate'
+                                  : needsReview && !isApproved
+                                    ? 'Needs review'
+                                    : transaction.status
+                              }
+                            />
+                          </DataTableCell>
+                          <DataTableCell align="center" className="w-16">
+                            {canDelete ? (
+                              <DeleteRowButton
+                                iconOnly
+                                onClick={() =>
+                                  deleteStagedTransactions([transaction.id])
+                                }
+                                srLabel={`Delete ${transaction.description}`}
+                              />
+                            ) : null}
+                          </DataTableCell>
+                        </DataTableRow>
+                      );
+                    })
+                  ) : (
+                    <DataTableEmptyRow colSpan={8}>
+                      No rows are stored for this import.
+                    </DataTableEmptyRow>
+                  )}
                 </DataTableBody>
               </DataTable>
             </Panel>

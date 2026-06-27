@@ -8,6 +8,7 @@ import {
   DataTable,
   DataTableBody,
   DataTableCell,
+  DataTableEmptyRow,
   DataTableHeader,
   DataTableHeaderCell,
   DataTableHeaderCells,
@@ -143,6 +144,10 @@ export const TransactionsReview = () => {
     (page - 1) * pageSize,
     page * pageSize,
   );
+  const emptyTransactionsMessage =
+    transactions.length === 0
+      ? 'No transactions yet. Import a CSV or add a manual transaction.'
+      : 'No transactions match the current filters.';
   const visibleTransactionIds = visibleTransactions.map(
     (transaction) => transaction.id,
   );
@@ -318,65 +323,75 @@ export const TransactionsReview = () => {
                 </DataTableHeaderRow>
               </DataTableHeader>
               <DataTableBody>
-                {visibleTransactions.map((transaction) => {
-                  const selected = selectedTransactionIds.includes(
-                    transaction.id,
-                  );
-                  const category =
-                    draftTransactionCategories[transaction.id] ??
-                    transaction.category;
-                  const categorySourceLabel = getCategorySourceLabel(
-                    transaction.categorizationSource,
-                    Boolean(draftTransactionCategories[transaction.id]),
-                  );
+                {visibleTransactions.length > 0 ? (
+                  visibleTransactions.map((transaction) => {
+                    const selected = selectedTransactionIds.includes(
+                      transaction.id,
+                    );
+                    const category =
+                      draftTransactionCategories[transaction.id] ??
+                      transaction.category;
+                    const categorySourceLabel = getCategorySourceLabel(
+                      transaction.categorizationSource,
+                      Boolean(draftTransactionCategories[transaction.id]),
+                    );
 
-                  return (
-                    <DataTableRow key={`${transaction.id}-${transaction.date}`}>
-                      <DataTableCell>
-                        <input
-                          type="checkbox"
-                          className="size-4 rounded border-[hsl(var(--outline-variant))]"
-                          aria-label={`Select ${transaction.description}`}
-                          checked={selected}
-                          onChange={() =>
-                            toggleTransactionSelection(transaction.id)
-                          }
-                        />
-                      </DataTableCell>
-                      <DataTableCell muted noWrap>
-                        {transaction.date}
-                      </DataTableCell>
-                      <DataTableRowHeader>
-                        {transaction.description}
-                      </DataTableRowHeader>
-                      <DataTableCell>
-                        <CategorySelect
-                          ariaLabel={`Category for ${transaction.description}`}
-                          categories={transactionCategories}
-                          className="w-48"
-                          hasDraft={Boolean(
-                            draftTransactionCategories[transaction.id],
-                          )}
-                          value={category}
-                          onChange={(value) =>
-                            updateDraftCategory(transaction.id, value)
-                          }
-                        />
-                      </DataTableCell>
-                      <DataTableCell muted>{categorySourceLabel}</DataTableCell>
-                      <DataTableCell align="right" noWrap>
-                        <SignedAmount amount={transaction.amount} />
-                      </DataTableCell>
-                      <DataTableCell align="center" className="w-16">
-                        <DeleteRowButton
-                          iconOnly
-                          onClick={() => openDeleteDialog([transaction.id])}
-                          srLabel={`Delete ${transaction.description}`}
-                        />
-                      </DataTableCell>
-                    </DataTableRow>
-                  );
-                })}
+                    return (
+                      <DataTableRow
+                        key={`${transaction.id}-${transaction.date}`}
+                      >
+                        <DataTableCell>
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-[hsl(var(--outline-variant))]"
+                            aria-label={`Select ${transaction.description}`}
+                            checked={selected}
+                            onChange={() =>
+                              toggleTransactionSelection(transaction.id)
+                            }
+                          />
+                        </DataTableCell>
+                        <DataTableCell muted noWrap>
+                          {transaction.date}
+                        </DataTableCell>
+                        <DataTableRowHeader>
+                          {transaction.description}
+                        </DataTableRowHeader>
+                        <DataTableCell>
+                          <CategorySelect
+                            ariaLabel={`Category for ${transaction.description}`}
+                            categories={transactionCategories}
+                            className="w-48"
+                            hasDraft={Boolean(
+                              draftTransactionCategories[transaction.id],
+                            )}
+                            value={category}
+                            onChange={(value) =>
+                              updateDraftCategory(transaction.id, value)
+                            }
+                          />
+                        </DataTableCell>
+                        <DataTableCell muted>
+                          {categorySourceLabel}
+                        </DataTableCell>
+                        <DataTableCell align="right" noWrap>
+                          <SignedAmount amount={transaction.amount} />
+                        </DataTableCell>
+                        <DataTableCell align="center" className="w-16">
+                          <DeleteRowButton
+                            iconOnly
+                            onClick={() => openDeleteDialog([transaction.id])}
+                            srLabel={`Delete ${transaction.description}`}
+                          />
+                        </DataTableCell>
+                      </DataTableRow>
+                    );
+                  })
+                ) : (
+                  <DataTableEmptyRow colSpan={7}>
+                    {emptyTransactionsMessage}
+                  </DataTableEmptyRow>
+                )}
               </DataTableBody>
             </DataTable>
           </div>
