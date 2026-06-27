@@ -70,7 +70,7 @@ src/
   testing/             Vitest and Testing Library setup/utilities
   utils/               Shared utility functions
 generators/            Plop component generator templates
-public/                Static assets and MSW worker
+public/                Static assets
 ```
 
 Important app routes:
@@ -153,7 +153,10 @@ Most domain work is in `src/features/finance`:
 - `duplicate-transactions.ts` builds duplicate signatures from normalized date,
   description, absolute amount, and CR/DB direction.
 - `finance-import-state.ts` contains import batch status rules, staged import
-  restoration, categorization chunking, and manual category application helpers.
+  deletion/confirmation planning, staged import restoration, and
+  categorization chunking.
+- `finance-category-drafts.ts` applies manual category choices, clears matching
+  category drafts, and recalculates staged import status after category edits.
 - `finance-transaction-state.ts` contains pure helpers for manual transaction
   creation, draft category updates, bulk category edits, and transaction detail
   saves.
@@ -166,8 +169,9 @@ Most domain work is in `src/features/finance`:
 - `postgres-finance-store.ts` is the current server-side PostgreSQL
   implementation behind `/api/finance-store`.
 - `ollama-categorization.ts` builds the categorization prompt, parses Ollama
-  JSON responses, clamps confidence, derives categorization status, and creates
-  manual-review fallbacks for `/api/categorize`.
+  JSON responses, applies model output back onto transactions, clamps
+  confidence, derives categorization status, and creates manual-review
+  fallbacks for `/api/categorize`.
 - `use-finance-data.tsx` is the client-side orchestrator for loading data,
   importing CSVs, categorizing rows, staging imports, draft category edits,
   manual transactions, deletes, approvals, and confirmation.
@@ -312,6 +316,8 @@ Test behavior, not implementation details. Existing test patterns:
 - Hook/provider behavior uses Testing Library `renderHook`, `act`, and custom
   test stores, for example `use-finance-data.test.tsx`.
 - Shared UI tests live under the relevant component folder.
+- Shared form primitives should support both React Hook Form registration and
+  plain controlled inputs when that keeps screen code from repeating CSS.
 
 Good candidates for focused tests:
 
@@ -319,7 +325,8 @@ Good candidates for focused tests:
 - Duplicate detection changes.
 - Import staging and confirmation rules.
 - Import status helpers in `finance-import-state.ts`.
-- Manual transaction, draft category, and detail-save helpers in
+- Category draft application helpers in `finance-category-drafts.ts`.
+- Manual transaction, transaction list, and detail-save helpers in
   `finance-transaction-state.ts`.
 - Store normalization and migration behavior.
 - Ollama response parsing and fallback behavior.
@@ -370,4 +377,6 @@ Adding a bank CSV format:
 - Keep legacy `ledgerlocal` storage/table handling unless intentionally
   removing migration support.
 - Treat transaction descriptions and bank data as sensitive.
+- Remove unused dependencies and generated artifacts together; keep
+  `package.json`, `yarn.lock`, and related config in sync.
 - Prefer focused, local tests over broad rewrites.
