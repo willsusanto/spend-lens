@@ -72,3 +72,20 @@ test('should fail submission if validation fails', async () => {
 
   expect(handleSubmit).toHaveBeenCalledTimes(0);
 });
+
+test('should render a controlled Input without form registration', async () => {
+  const handleChange = vi.fn();
+
+  rtlRender(
+    <Input
+      label="Search"
+      value="coffee"
+      onChange={handleChange}
+      aria-label="Search"
+    />,
+  );
+
+  await userEvent.type(screen.getByLabelText(/search/i), ' shop');
+
+  expect(handleChange).toHaveBeenCalled();
+});

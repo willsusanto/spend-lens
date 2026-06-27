@@ -12,6 +12,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
+import { Input } from '@/components/ui/form';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { uncategorizedCategory } from '@/features/finance/finance-settings';
@@ -178,25 +179,21 @@ export const SettingsPage = () => {
           </PanelHeader>
           <form className="grid gap-5 p-5" onSubmit={saveConnectionSettings}>
             <div className="grid gap-5 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium">
-                Ollama Endpoint URL
-                <input
-                  required
-                  className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                  type="url"
-                  value={endpointDraft}
-                  onChange={(event) => setEndpointDraft(event.target.value)}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium">
-                Model Name
-                <input
-                  required
-                  className="min-h-10 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] px-3 text-sm"
-                  value={modelDraft}
-                  onChange={(event) => setModelDraft(event.target.value)}
-                />
-              </label>
+              <Input
+                required
+                className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
+                label="Ollama Endpoint URL"
+                type="url"
+                value={endpointDraft}
+                onChange={(event) => setEndpointDraft(event.target.value)}
+              />
+              <Input
+                required
+                className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
+                label="Model Name"
+                value={modelDraft}
+                onChange={(event) => setModelDraft(event.target.value)}
+              />
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
               <p
