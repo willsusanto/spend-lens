@@ -19,6 +19,9 @@ const normalizeDuplicateDescription = (description: string) =>
 const normalizeDuplicateAmount = (amount: number) =>
   Math.abs(amount).toFixed(2);
 
+const normalizeDuplicateSourceFile = (sourceFile: string | undefined) =>
+  sourceFile?.trim().replace(/\s+/g, ' ').toLocaleLowerCase() ?? null;
+
 export const normalizeTransactionDirection = (
   direction: unknown,
   amount: number,
@@ -47,18 +50,40 @@ export const getTransactionDuplicateKey = (
     getTransactionDirection(transaction),
   ].join('|');
 
+const hasMatchingDuplicateSource = (
+  transaction: Pick<FinanceTransaction, 'sourceFile'>,
+  existingTransaction: Pick<FinanceTransaction, 'sourceFile'>,
+) => {
+  const sourceFile = normalizeDuplicateSourceFile(transaction.sourceFile);
+  const existingSourceFile = normalizeDuplicateSourceFile(
+    existingTransaction.sourceFile,
+  );
+
+  return (
+    !sourceFile || !existingSourceFile || sourceFile === existingSourceFile
+  );
+};
+
+const isMatchingDuplicateCandidate = (
+  transaction: Pick<
+    FinanceTransaction,
+    'amount' | 'date' | 'description' | 'direction' | 'sourceFile'
+  >,
+  existingTransaction: FinanceTransaction,
+) =>
+  getTransactionDuplicateKey(existingTransaction) ===
+    getTransactionDuplicateKey(transaction) &&
+  hasMatchingDuplicateSource(transaction, existingTransaction);
+
 export const findDuplicateTransaction = (
   transaction: Pick<
     FinanceTransaction,
-    'amount' | 'date' | 'description' | 'direction'
+    'amount' | 'date' | 'description' | 'direction' | 'sourceFile'
   >,
   existingTransactions: FinanceTransaction[],
 ) => {
-  const transactionKey = getTransactionDuplicateKey(transaction);
-
-  return existingTransactions.find(
-    (existingTransaction) =>
-      getTransactionDuplicateKey(existingTransaction) === transactionKey,
+  return existingTransactions.find((existingTransaction) =>
+    isMatchingDuplicateCandidate(transaction, existingTransaction),
   );
 };
 
@@ -84,18 +109,9 @@ export const markDuplicateTransactions = (
   transactions: FinanceTransaction[],
   existingTransactions: FinanceTransaction[],
 ) => {
-  const seenKeys = new Set(
-    existingTransactions.map((transaction) =>
-      getTransactionDuplicateKey(transaction),
-    ),
+  return transactions.map((transaction) =>
+    findDuplicateTransaction(transaction, existingTransactions)
+      ? markDuplicateTransaction(transaction)
+      : transaction,
   );
-
-  return transactions.map((transaction) => {
-    const key = getTransactionDuplicateKey(transaction);
-    const isDuplicate = seenKeys.has(key);
-
-    seenKeys.add(key);
-
-    return isDuplicate ? markDuplicateTransaction(transaction) : transaction;
-  });
 };

@@ -823,7 +823,10 @@ export const FinanceDataProvider = ({
           ? {
               ...current,
               finalBatchStatus: confirmation.finalStatus,
+              processedRows: 0,
+              processedTransactions: [],
               message: confirmation.finalMessage,
+              totalRows: 0,
             }
           : current,
       );

@@ -17,6 +17,7 @@ const createTransaction = (
   description: 'Coffee Shop',
   direction: 'DB',
   id: 'transaction',
+  sourceFile: 'bank.csv',
   status: 'Review',
   ...transaction,
 });
@@ -63,10 +64,44 @@ describe('duplicate transaction detection', () => {
     const manualEntry = createTransaction({
       description: 'coffee shop',
       id: 'manual',
+      sourceFile: undefined,
     });
 
     expect(findDuplicateTransaction(manualEntry, [existing])?.id).toBe(
       'existing',
     );
+  });
+
+  test('does not mark repeated rows in the same import as duplicates', () => {
+    const firstPurchase = createTransaction({
+      id: 'first-purchase',
+    });
+    const secondPurchase = createTransaction({
+      id: 'second-purchase',
+    });
+
+    const checked = markDuplicateTransactions(
+      [firstPurchase, secondPurchase],
+      [],
+    );
+
+    expect(checked.map((transaction) => transaction.status)).toEqual([
+      'Review',
+      'Review',
+    ]);
+  });
+
+  test('does not mark matching rows from different source files as duplicates', () => {
+    const existing = createTransaction({
+      id: 'existing',
+      sourceFile: 'checking-june.csv',
+    });
+    const imported = createTransaction({
+      id: 'imported',
+      sourceFile: 'checking-july.csv',
+    });
+    const [checked] = markDuplicateTransactions([imported], [existing]);
+
+    expect(checked.status).toBe('Review');
   });
 });

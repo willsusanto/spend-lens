@@ -108,6 +108,11 @@ describe('useFinanceData import duplicate handling', () => {
     expect(result.current.transactions).toHaveLength(1);
     expect(result.current.transactions[0].id).toBe(kept.id);
     expect(result.current.transactions[0].status).toBe('Approved');
+    expect(result.current.activeImport.processedTransactions).toHaveLength(0);
+    expect(result.current.activeImport.finalBatchStatus).toBe('Approved');
+    expect(result.current.message).toContain(
+      'Committed 1 non-duplicate transaction',
+    );
   });
 
   test('deletes staged duplicates and commits only non-duplicate import rows', async () => {
@@ -154,6 +159,8 @@ describe('useFinanceData import duplicate handling', () => {
     expect(result.current.transactions[0].id).toBe(saveable.id);
     expect(result.current.transactions[0].status).toBe('Approved');
     expect(result.current.stagedTransactions).toHaveLength(0);
+    expect(result.current.activeImport.processedTransactions).toHaveLength(0);
+    expect(result.current.activeImport.finalBatchStatus).toBe('Approved');
     expect(result.current.message).toContain(
       'Committed 1 non-duplicate transaction',
     );

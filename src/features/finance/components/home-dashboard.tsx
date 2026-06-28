@@ -81,6 +81,12 @@ export const HomeDashboard = () => {
     (activeImport.finalBatchStatus === 'Duplicate' &&
       stagedRowsForActiveImport.length === 0);
   const processingMessage = activeImport.message ?? message;
+  const hasConfirmedActiveImport =
+    activeImport.finalBatchStatus === 'Approved' ||
+    activeImport.finalBatchStatus === 'Duplicate';
+  const emptyProcessedRowsMessage = hasConfirmedActiveImport
+    ? 'Import confirmed. Staged rows were cleared from this table.'
+    : 'No processed rows yet.';
   const hasUnsavedCategoryChanges = saveableRows.some(
     (transaction) => draftStagedTransactionCategories[transaction.id],
   );
@@ -168,9 +174,11 @@ export const HomeDashboard = () => {
               <p className="text-sm font-medium">
                 {isImporting
                   ? 'Processing CSV with Ollama'
-                  : activeImport.isComplete && activeImport.fileName
-                    ? `${activeImport.fileName} processed`
-                    : 'Waiting for a CSV upload'}
+                  : hasConfirmedActiveImport && activeImport.fileName
+                    ? `${activeImport.fileName} confirmed`
+                    : activeImport.isComplete && activeImport.fileName
+                      ? `${activeImport.fileName} processed`
+                      : 'Waiting for a CSV upload'}
               </p>
               <p className="mt-1 text-sm leading-5 text-[hsl(var(--on-surface-variant))]">
                 {processingMessage ??
@@ -276,7 +284,7 @@ export const HomeDashboard = () => {
                   })
                 ) : (
                   <DataTableEmptyRow colSpan={6}>
-                    No processed rows yet.
+                    {emptyProcessedRowsMessage}
                   </DataTableEmptyRow>
                 )}
               </DataTableBody>
@@ -299,10 +307,10 @@ export const HomeDashboard = () => {
               {activeImport.finalBatchStatus === 'Approved' ? (
                 <span className="inline-flex items-center gap-2">
                   <Check className="size-4" aria-hidden="true" />
-                  Saved
+                  Confirmed and saved to Transactions
                 </span>
               ) : activeImport.finalBatchStatus === 'Duplicate' ? (
-                'Duplicates skipped'
+                'Confirmed. Duplicate rows skipped.'
               ) : latestImport ? (
                 `${saveableRows.length} rows ready to save${
                   duplicateRows.length > 0
