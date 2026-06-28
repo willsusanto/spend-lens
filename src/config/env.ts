@@ -33,7 +33,15 @@ const createEnv = () => {
     );
   }
 
-  return parsedEnv.data ?? {};
+  const env = parsedEnv.data;
+
+  if (env.FINANCE_STORE_MODE === 'database' && !env.DATABASE_URL) {
+    throw new Error(
+      'DATABASE_URL is required when NEXT_PUBLIC_FINANCE_STORE_MODE=database.',
+    );
+  }
+
+  return env;
 };
 
 export const env = createEnv();

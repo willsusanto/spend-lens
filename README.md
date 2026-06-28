@@ -33,17 +33,49 @@ The app supports two finance data stores:
 - `NEXT_PUBLIC_FINANCE_STORE_MODE=database` saves finance data through the
   server API into PostgreSQL.
 
-For a Railway-hosted PostgreSQL database, set:
+Database mode uses the server-side `DATABASE_URL` only. Do not expose it with a
+`NEXT_PUBLIC_` prefix, and do not call Supabase or Railway directly from client
+components. The app creates its normalized SpendLens tables on first use through
+`/api/finance-store`.
+
+For any PostgreSQL provider, set:
 
 ```bash
 NEXT_PUBLIC_FINANCE_STORE_MODE=database
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
 ```
 
-Use Railway's private `DATABASE_URL` when the app is also deployed on Railway.
-For local development against Railway's hosted database, use the public
-connection URL. If the public connection requires TLS, append
-`?sslmode=require`.
+URL-encode special characters in the username/password before putting the value
+in `.env`.
+
+For Supabase:
+
+- Create or open a Supabase project.
+- Copy the PostgreSQL connection string from the database settings.
+- Put that value in `.env` as `DATABASE_URL`.
+- Use a URI that is reachable from where Next.js is running. For local
+  development, that means a public or pooled connection string, not an internal
+  cloud-only hostname.
+- Keep or append `?sslmode=require` when the copied URI does not already include
+  an SSL mode.
+
+For Railway:
+
+- Add a PostgreSQL service to the Railway project.
+- When the app is deployed on Railway, set `DATABASE_URL` to Railway's Postgres
+  `DATABASE_URL` variable. The private/internal URL is preferred when the app and
+  database are in the same Railway project.
+- For local development against Railway's hosted database, use Railway's public
+  PostgreSQL connection URL because your machine cannot use Railway private
+  networking.
+- If the public connection requires TLS, append `?sslmode=require`.
+
+Local PostgreSQL works too:
+
+```bash
+NEXT_PUBLIC_FINANCE_STORE_MODE=database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/spendlens
+```
 
 ## Current Scope
 
