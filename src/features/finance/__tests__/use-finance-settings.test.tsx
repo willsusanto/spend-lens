@@ -1,7 +1,8 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { beforeEach, describe, expect, test } from 'vitest';
 
+import { defaultFinanceSettings } from '@/features/finance/finance-settings';
 import {
   FinanceSettingsProvider,
   useFinanceSettings,
@@ -39,10 +40,45 @@ describe('FinanceSettingsProvider', () => {
     await waitFor(() => expect(result.current.hydrated).toBe(true));
 
     expect(result.current.categories).toEqual(settings.categories);
+    expect(result.current.categoryColors.Groceries).toMatch(/^#[0-9a-f]{6}$/);
     expect(result.current.ollamaEndpoint).toBe(settings.ollamaEndpoint);
     expect(result.current.ollamaModel).toBe(settings.ollamaModel);
-    expect(window.localStorage.getItem('spendlens.settings')).toBe(
-      JSON.stringify(settings),
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem('spendlens.settings') ?? '{}',
+      ) as typeof result.current;
+
+      expect(stored.categoryColors.Groceries).toBe(
+        result.current.categoryColors.Groceries,
+      );
+    });
+  });
+
+  test('updates category colors and resets them with categories', async () => {
+    const { result } = renderHook(() => useFinanceSettings(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+
+    act(() => {
+      result.current.updateCategoryColor('Groceries', '#123456');
+    });
+
+    expect(result.current.categoryColors.Groceries).toBe('#123456');
+
+    act(() => {
+      result.current.updateCategoryColor('Groceries', 'not-a-color');
+    });
+
+    expect(result.current.categoryColors.Groceries).toBe('#123456');
+
+    act(() => {
+      result.current.resetCategories();
+    });
+
+    expect(result.current.categoryColors).toEqual(
+      defaultFinanceSettings.categoryColors,
     );
   });
 });

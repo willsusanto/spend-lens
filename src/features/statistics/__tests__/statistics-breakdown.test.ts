@@ -73,6 +73,25 @@ describe('statistics breakdown helpers', () => {
     });
   });
 
+  test('uses configured category colors for slices', () => {
+    const breakdown = getCategoryBreakdown(
+      [
+        createTransaction({ amount: -100, category: 'Groceries', id: 'one' }),
+        createTransaction({ amount: -50, category: 'Transport', id: 'two' }),
+      ],
+      (transaction) => Math.abs(transaction.amount),
+      {
+        Groceries: '#123456',
+        Transport: '#abcdef',
+      },
+    );
+
+    expect(breakdown.map((slice) => slice.color)).toEqual([
+      '#123456',
+      '#abcdef',
+    ]);
+  });
+
   test('formats, labels, and sorts category slices', () => {
     const slices = [
       {

@@ -1,4 +1,8 @@
 import { FinanceTransaction } from '@/features/finance/data';
+import {
+  CategoryColorMap,
+  getCategoryColor,
+} from '@/features/finance/finance-settings';
 
 export type CategorySort = 'high' | 'low';
 
@@ -10,22 +14,10 @@ export type CategorySlice = {
   percentage: number;
 };
 
-const chartColors = [
-  'hsl(var(--primary))',
-  'hsl(200 86% 42%)',
-  'hsl(154 67% 35%)',
-  'hsl(34 92% 45%)',
-  'hsl(348 75% 53%)',
-  'hsl(266 67% 56%)',
-  'hsl(181 70% 36%)',
-  'hsl(327 70% 48%)',
-  'hsl(84 58% 38%)',
-  'hsl(18 78% 47%)',
-];
-
 export const getCategoryBreakdown = (
   transactions: FinanceTransaction[],
   valueSelector: (transaction: FinanceTransaction) => number,
+  categoryColors: CategoryColorMap = {},
 ) => {
   const totalsByCategory = new Map<string, { amount: number; count: number }>();
 
@@ -55,7 +47,7 @@ export const getCategoryBreakdown = (
   return Array.from(totalsByCategory.entries())
     .map(([name, item], index) => ({
       amount: item.amount,
-      color: chartColors[index % chartColors.length],
+      color: getCategoryColor(name, categoryColors, index),
       count: item.count,
       name,
       percentage: total > 0 ? (item.amount / total) * 100 : 0,
@@ -63,7 +55,10 @@ export const getCategoryBreakdown = (
     .toSorted((left, right) => right.amount - left.amount);
 };
 
-export const getCountBreakdown = (transactions: FinanceTransaction[]) => {
+export const getCountBreakdown = (
+  transactions: FinanceTransaction[],
+  categoryColors: CategoryColorMap = {},
+) => {
   const totalsByCategory = new Map<string, { amount: number; count: number }>();
 
   transactions.forEach((transaction) => {
@@ -83,7 +78,7 @@ export const getCountBreakdown = (transactions: FinanceTransaction[]) => {
   return Array.from(totalsByCategory.entries())
     .map(([name, item], index) => ({
       amount: item.amount,
-      color: chartColors[index % chartColors.length],
+      color: getCategoryColor(name, categoryColors, index),
       count: item.count,
       name,
       percentage: total > 0 ? (item.count / total) * 100 : 0,

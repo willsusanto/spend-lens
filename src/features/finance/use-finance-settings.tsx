@@ -13,7 +13,11 @@ import {
 import {
   defaultFinanceSettings,
   FinanceSettings,
+  getCategoryColor,
+  getDefaultCategoryColor,
   normalizeCategories,
+  normalizeCategoryColor,
+  normalizeCategoryColors,
   normalizeFinanceSettings,
   normalizeOllamaEndpoint,
   normalizeOllamaModel,
@@ -36,6 +40,7 @@ type FinanceSettingsContextValue = FinanceSettings & {
   hydrated: boolean;
   resetCategories: () => void;
   saveOllamaSettings: (settings: OllamaSettingsInput) => void;
+  updateCategoryColor: (category: string, color: string) => void;
 };
 
 const FinanceSettingsContext =
@@ -130,13 +135,23 @@ export const FinanceSettingsProvider = ({
         return current;
       }
 
+      const categories = normalizeCategories([
+        ...currentCategories,
+        trimmed,
+        uncategorizedCategory,
+      ]);
+      const categoryIndex = categories.findIndex((item) => item === trimmed);
+
       return {
         ...current,
-        categories: normalizeCategories([
-          ...currentCategories,
-          trimmed,
-          uncategorizedCategory,
-        ]),
+        categories,
+        categoryColors: normalizeCategoryColors(
+          {
+            ...current.categoryColors,
+            [trimmed]: getDefaultCategoryColor(trimmed, categoryIndex),
+          },
+          categories,
+        ),
       };
     });
   }, []);
@@ -146,18 +161,27 @@ export const FinanceSettingsProvider = ({
       return;
     }
 
-    setSettings((current) => ({
-      ...current,
-      categories: normalizeCategories(
+    setSettings((current) => {
+      const categories = normalizeCategories(
         current.categories.filter((item) => item !== category),
-      ),
-    }));
+      );
+
+      return {
+        ...current,
+        categories,
+        categoryColors: normalizeCategoryColors(
+          current.categoryColors,
+          categories,
+        ),
+      };
+    });
   }, []);
 
   const resetCategories = useCallback(() => {
     setSettings((current) => ({
       ...current,
       categories: defaultFinanceSettings.categories,
+      categoryColors: defaultFinanceSettings.categoryColors,
     }));
   }, []);
 
@@ -172,6 +196,32 @@ export const FinanceSettingsProvider = ({
     [],
   );
 
+  const updateCategoryColor = useCallback((category: string, color: string) => {
+    setSettings((current) => {
+      if (!current.categories.includes(category)) {
+        return current;
+      }
+
+      const categoryIndex = current.categories.findIndex(
+        (item) => item === category,
+      );
+
+      return {
+        ...current,
+        categoryColors: normalizeCategoryColors(
+          {
+            ...current.categoryColors,
+            [category]: normalizeCategoryColor(
+              color,
+              getCategoryColor(category, current.categoryColors, categoryIndex),
+            ),
+          },
+          current.categories,
+        ),
+      };
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       ...settings,
@@ -180,6 +230,7 @@ export const FinanceSettingsProvider = ({
       hydrated,
       resetCategories,
       saveOllamaSettings,
+      updateCategoryColor,
     }),
     [
       addCategory,
@@ -188,6 +239,7 @@ export const FinanceSettingsProvider = ({
       resetCategories,
       saveOllamaSettings,
       settings,
+      updateCategoryColor,
     ],
   );
 

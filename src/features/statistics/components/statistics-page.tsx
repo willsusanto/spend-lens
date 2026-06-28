@@ -18,6 +18,7 @@ import {
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { formatCurrency } from '@/features/finance/data';
 import { useFinanceData } from '@/features/finance/use-finance-data';
+import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 import {
   CategorySlice,
   CategorySort,
@@ -259,6 +260,7 @@ const MetricPanel = ({
 
 export const StatisticsPage = () => {
   const { hydrated, transactions } = useFinanceData();
+  const { categoryColors } = useFinanceSettings();
   const [categorySort, setCategorySort] = useState<CategorySort>('high');
   const expenseTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.amount < 0),
@@ -266,14 +268,16 @@ export const StatisticsPage = () => {
   );
   const expenseSlices = useMemo(
     () =>
-      getCategoryBreakdown(expenseTransactions, (transaction) =>
-        Math.abs(transaction.amount),
+      getCategoryBreakdown(
+        expenseTransactions,
+        (transaction) => Math.abs(transaction.amount),
+        categoryColors,
       ),
-    [expenseTransactions],
+    [categoryColors, expenseTransactions],
   );
   const countSlices = useMemo(
-    () => getCountBreakdown(transactions),
-    [transactions],
+    () => getCountBreakdown(transactions, categoryColors),
+    [categoryColors, transactions],
   );
   const sortedExpenseSlices = useMemo(
     () => sortCategorySlices(expenseSlices, categorySort),

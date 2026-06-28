@@ -26,7 +26,10 @@ import {
   DataTableRowHeader,
 } from '@/components/ui/table';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
-import { uncategorizedCategory } from '@/features/finance/finance-settings';
+import {
+  getCategoryColor,
+  uncategorizedCategory,
+} from '@/features/finance/finance-settings';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { useFinanceSettings } from '@/features/finance/use-finance-settings';
 
@@ -42,6 +45,7 @@ const getCategoryType = (category: string) =>
 
 const categorySettingsColumns = [
   { key: 'category-name', label: 'Category Name' },
+  { key: 'color', label: 'Color' },
   { key: 'type', label: 'Type' },
   { align: 'right' as const, key: 'actions', label: 'Actions' },
 ];
@@ -51,11 +55,13 @@ export const SettingsPage = () => {
   const {
     addCategory,
     categories,
+    categoryColors,
     deleteCategory,
     ollamaEndpoint,
     ollamaModel,
     resetCategories,
     saveOllamaSettings,
+    updateCategoryColor,
   } = useFinanceSettings();
   const [endpointDraft, setEndpointDraft] = useState(ollamaEndpoint);
   const [modelDraft, setModelDraft] = useState(ollamaModel);
@@ -299,6 +305,11 @@ export const SettingsPage = () => {
             </DataTableHeader>
             <DataTableBody>
               {categories.map((category) => {
+                const categoryColor = getCategoryColor(
+                  category,
+                  categoryColors,
+                  categories.indexOf(category),
+                );
                 const isUsed = usedCategories.has(category);
                 const isRequired = category === uncategorizedCategory;
                 const isLastAssignable =
@@ -316,6 +327,26 @@ export const SettingsPage = () => {
                 return (
                   <DataTableRow key={category}>
                     <DataTableRowHeader>{category}</DataTableRowHeader>
+                    <DataTableCell>
+                      <label className="inline-flex items-center gap-3">
+                        <span className="sr-only">Color for {category}</span>
+                        <input
+                          aria-label={`Color for ${category}`}
+                          className="size-8 cursor-pointer rounded border border-[hsl(var(--outline-variant))] bg-transparent p-0.5"
+                          type="color"
+                          value={categoryColor}
+                          onChange={(event) =>
+                            updateCategoryColor(
+                              category,
+                              event.currentTarget.value,
+                            )
+                          }
+                        />
+                        <span className="font-mono text-xs uppercase text-[hsl(var(--on-surface-variant))]">
+                          {categoryColor}
+                        </span>
+                      </label>
+                    </DataTableCell>
                     <DataTableCell>
                       <span className="inline-flex rounded bg-[hsl(var(--surface-high))] px-2 py-1 text-xs">
                         {getCategoryType(category)}
