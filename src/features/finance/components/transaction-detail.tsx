@@ -7,6 +7,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { PageContainer, PageHeader } from '@/components/layouts/page';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import { paths } from '@/config/paths';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import {
   CategorySelect,
@@ -84,7 +85,7 @@ export const TransactionDetail = ({
 
   const handleNextNeedsReview = () => {
     if (nextNeedsReview) {
-      router.push(`/transactions/${nextNeedsReview.id}`);
+      router.push(paths.transactions.getDetailHref(nextNeedsReview.id));
     }
   };
 
@@ -105,7 +106,7 @@ export const TransactionDetail = ({
       <FinanceAppShell>
         <PageContainer size="narrow" flow="grid" className="gap-4">
           <Link
-            href="/transactions"
+            href={paths.transactions.getHref()}
             className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -140,7 +141,7 @@ export const TransactionDetail = ({
           }
           eyebrow={
             <Link
-              href="/transactions"
+              href={paths.transactions.getHref()}
               className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
@@ -252,7 +253,7 @@ export const TransactionDetail = ({
                   similarTransactions.map((item) => (
                     <Link
                       key={item.id}
-                      href={`/transactions/${item.id}`}
+                      href={paths.transactions.getDetailHref(item.id)}
                       className="flex items-center justify-between gap-4 py-3 text-sm transition-colors hover:text-primary"
                     >
                       <span className="min-w-0">

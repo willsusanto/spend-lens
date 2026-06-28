@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ReactNode } from 'react';
 
 import { AppShell } from '@/components/layouts/app-shell';
+import { paths } from '@/config/paths';
 import { useFinanceData } from '@/features/finance/use-finance-data';
 import { cn } from '@/utils/cn';
 
@@ -66,7 +67,7 @@ const FinanceSyncIndicator = () => {
   return (
     <>
       <Link
-        href="/"
+        href={paths.home.getHref()}
         className={cn(
           'inline-flex min-h-10 items-center justify-center gap-2 rounded px-2 text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--surface-low))] sm:px-3',
           activeImport.isProcessing &&

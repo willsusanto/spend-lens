@@ -18,6 +18,7 @@ import {
   DataTableRowHeader,
   getDataTableActionClassName,
 } from '@/components/ui/table';
+import { paths } from '@/config/paths';
 import { CsvUploadButton } from '@/features/finance/components/csv-upload-control';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { TransactionStatusBadge } from '@/features/finance/components/transaction-table-parts';
@@ -58,7 +59,7 @@ export const ImportsHistory = () => {
     const result = await importCsv(file);
 
     if (result) {
-      router.push(`/imports/${result.batch.id}/review`);
+      router.push(paths.imports.getReviewHref(result.batch.id));
     }
   };
 
@@ -112,7 +113,7 @@ export const ImportsHistory = () => {
                     <DataTableCell align="center" className="w-16">
                       <Link
                         aria-label={`Review ${item.fileName}`}
-                        href={`/imports/${item.id}/review`}
+                        href={paths.imports.getReviewHref(item.id)}
                         className={getDataTableActionClassName()}
                         title={`Review ${item.fileName}`}
                       >

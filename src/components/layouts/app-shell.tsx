@@ -1,17 +1,27 @@
 'use client';
 
-import { ChartPie, Cloud, Home, List, Settings, Sparkles } from 'lucide-react';
+import {
+  ChartPie,
+  Cloud,
+  FileText,
+  Home,
+  List,
+  Settings,
+  Sparkles,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 
+import { paths } from '@/config/paths';
 import { cn } from '@/utils/cn';
 
 const navigation = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/transactions', label: 'Transactions', icon: List },
-  { href: '/statistics', label: 'Statistics', icon: ChartPie },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: paths.home.getHref(), label: 'Home', icon: Home },
+  { href: paths.imports.getHref(), label: 'Imports', icon: FileText },
+  { href: paths.transactions.getHref(), label: 'Transactions', icon: List },
+  { href: paths.statistics.getHref(), label: 'Statistics', icon: ChartPie },
+  { href: paths.settings.getHref(), label: 'Settings', icon: Settings },
 ];
 
 type AppShellProps = {
@@ -31,7 +41,7 @@ export const AppShell = ({
     <div className="fixed inset-0 flex h-dvh flex-col overflow-hidden bg-transparent text-[hsl(var(--foreground))]">
       <header className="z-20 grid min-h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 py-3 sm:px-6">
         <Link
-          href="/"
+          href={paths.home.getHref()}
           className="interactive-lift inline-flex min-h-11 items-center gap-2 justify-self-start rounded-full border border-[hsl(var(--outline-variant)/0.65)] bg-[hsl(var(--surface-lowest)/0.72)] px-3 text-sm font-semibold shadow-sm backdrop-blur-xl"
         >
           <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -53,6 +63,7 @@ export const AppShell = ({
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
                       'interactive-lift relative inline-flex min-h-10 items-center rounded-full px-3 text-sm text-[hsl(var(--on-surface-variant))] hover:bg-[hsl(var(--surface-low))] hover:text-[hsl(var(--foreground))]',
@@ -60,11 +71,8 @@ export const AppShell = ({
                         'bg-[hsl(var(--foreground))] font-medium text-[hsl(var(--background))] shadow-sm hover:bg-[hsl(var(--foreground))] hover:text-[hsl(var(--background))]',
                     )}
                   >
-                    <Icon
-                      className="mr-1.5 size-4 sm:hidden"
-                      aria-hidden="true"
-                    />
-                    <span>{item.label}</span>
+                    <Icon className="size-4 sm:mr-1.5" aria-hidden="true" />
+                    <span className="hidden sm:inline">{item.label}</span>
                   </Link>
                 </li>
               );

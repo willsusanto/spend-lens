@@ -17,6 +17,7 @@ import {
   DataTableRow,
   DataTableRowHeader,
 } from '@/components/ui/table';
+import { paths } from '@/config/paths';
 import { FinanceAppShell } from '@/features/finance/components/finance-app-shell';
 import { MetricCard } from '@/features/finance/components/metric-card';
 import {
@@ -151,7 +152,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
           }
           eyebrow={
             <Link
-              href="/imports"
+              href={paths.imports.getHref()}
               className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--on-surface-variant))] transition-colors hover:text-[hsl(var(--foreground))]"
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
@@ -161,7 +162,7 @@ export const ImportReview = ({ importId }: { importId: string }) => {
           actions={
             <>
               <Link
-                href="/transactions"
+                href={paths.transactions.getHref()}
                 className="inline-flex min-h-10 items-center justify-center rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 py-2 text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-low))]"
               >
                 Open Transactions
@@ -265,7 +266,9 @@ export const ImportReview = ({ importId }: { importId: string }) => {
                               <span>{transaction.description}</span>
                             ) : (
                               <Link
-                                href={`/transactions/${transaction.id}`}
+                                href={paths.transactions.getDetailHref(
+                                  transaction.id,
+                                )}
                                 className="hover:underline"
                               >
                                 {transaction.description}

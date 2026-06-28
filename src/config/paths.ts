@@ -5,10 +5,16 @@ export const paths = {
 
   transactions: {
     getHref: () => '/transactions',
+    getDetailHref: (transactionId: string) => `/transactions/${transactionId}`,
   },
 
   imports: {
     getHref: () => '/imports',
+    getReviewHref: (importId: string) => `/imports/${importId}/review`,
+  },
+
+  statistics: {
+    getHref: () => '/statistics',
   },
 
   settings: {
