@@ -108,11 +108,16 @@ export const applyStagedCategoryDraftsToImports = ({
 export const applyStagedCategoryDraftsToActiveImport = (
   activeImport: ActiveImport,
   entries: CategoryDraftEntry[],
-): ActiveImport => ({
-  ...activeImport,
-  processedTransactions: applyCategoryDraftEntries(
+): ActiveImport => {
+  const processedTransactions = applyCategoryDraftEntries(
     activeImport.processedTransactions,
     entries,
     'Category changed during import staging.',
-  ),
-});
+  );
+
+  return {
+    ...activeImport,
+    finalBatchStatus: getImportBatchStatus(processedTransactions),
+    processedTransactions,
+  };
+};

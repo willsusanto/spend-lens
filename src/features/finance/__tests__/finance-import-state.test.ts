@@ -224,9 +224,14 @@ describe('finance import state helpers', () => {
     const active = restoreActiveImportFromStaged(
       [
         createImport({
+          id: 'import-1718899200000',
+          rows: 1,
+          status: 'Review',
+        }),
+        createImport({
           id: 'import-1718726400000',
           rows: 1,
-          status: 'Approved',
+          status: 'Review',
         }),
         createImport({
           id: 'import-1718812800000',
@@ -236,7 +241,7 @@ describe('finance import state helpers', () => {
       ],
       [
         createTransaction({
-          id: 'approved-row',
+          id: 'older-review-row',
           importId: 'import-1718726400000',
         }),
         createTransaction({
@@ -244,17 +249,22 @@ describe('finance import state helpers', () => {
           importId: 'import-1718812800000',
           sourceFile: 'later-bank.csv',
         }),
+        createTransaction({
+          id: 'latest-review-row',
+          importId: 'import-1718899200000',
+          sourceFile: 'latest-bank.csv',
+        }),
       ],
     );
 
     expect(active).toMatchObject({
-      activeImportId: 'import-1718812800000',
+      activeImportId: 'import-1718899200000',
       fileName: 'bank.csv',
       finalBatchStatus: 'Review',
       isComplete: true,
       processedRows: 1,
       totalRows: 1,
     });
-    expect(active.processedTransactions[0].id).toBe('review-row');
+    expect(active.processedTransactions[0].id).toBe('latest-review-row');
   });
 });

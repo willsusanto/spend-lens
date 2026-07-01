@@ -72,7 +72,7 @@ describe('duplicate transaction detection', () => {
     );
   });
 
-  test('does not mark repeated rows in the same import as duplicates', () => {
+  test('marks repeated rows in the same import as duplicates', () => {
     const firstPurchase = createTransaction({
       id: 'first-purchase',
     });
@@ -87,7 +87,7 @@ describe('duplicate transaction detection', () => {
 
     expect(checked.map((transaction) => transaction.status)).toEqual([
       'Review',
-      'Review',
+      'Duplicate',
     ]);
   });
 

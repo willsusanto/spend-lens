@@ -22,10 +22,33 @@ const pick = (row: CsvRow, candidates: string[]) => {
 };
 
 const parseAmount = (value: string) => {
-  const cleaned = value.replace(/[^\d.-]/g, '').replace(/[()]/g, '-');
-  const parsed = Number.parseFloat(cleaned);
+  const trimmed = value.trim();
 
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (!trimmed) {
+    return 0;
+  }
+
+  const isAccountingNegative = /^\(.*\)$/.test(trimmed);
+  const sign = isAccountingNegative || trimmed.startsWith('-') ? -1 : 1;
+  const unsigned = trimmed.replace(/[()]/g, '').replace(/^-/, '');
+  const numeric = unsigned.replace(/[^\d.,]/g, '');
+  const lastComma = numeric.lastIndexOf(',');
+  const lastDot = numeric.lastIndexOf('.');
+  const separator = lastComma > lastDot ? ',' : lastDot > lastComma ? '.' : '';
+  const fractionalDigits = separator
+    ? numeric.length - Math.max(lastComma, lastDot) - 1
+    : 0;
+  const hasMixedSeparators = lastComma >= 0 && lastDot >= 0;
+  const hasDecimalSeparator =
+    Boolean(separator) && (hasMixedSeparators || fractionalDigits !== 3);
+  const normalized = hasDecimalSeparator
+    ? numeric
+        .replace(new RegExp(`\\${separator === ',' ? '.' : ','}`, 'g'), '')
+        .replace(separator, '.')
+    : numeric.replace(/[.,]/g, '');
+  const parsed = Number.parseFloat(normalized);
+
+  return Number.isFinite(parsed) ? parsed * sign : 0;
 };
 
 const formatDate = (value: string) => {

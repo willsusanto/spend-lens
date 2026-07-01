@@ -109,9 +109,18 @@ export const markDuplicateTransactions = (
   transactions: FinanceTransaction[],
   existingTransactions: FinanceTransaction[],
 ) => {
-  return transactions.map((transaction) =>
-    findDuplicateTransaction(transaction, existingTransactions)
+  const seenTransactions = [...existingTransactions];
+
+  return transactions.map((transaction) => {
+    const checkedTransaction = findDuplicateTransaction(
+      transaction,
+      seenTransactions,
+    )
       ? markDuplicateTransaction(transaction)
-      : transaction,
-  );
+      : transaction;
+
+    seenTransactions.push(checkedTransaction);
+
+    return checkedTransaction;
+  });
 };

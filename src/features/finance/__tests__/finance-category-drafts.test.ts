@@ -149,16 +149,53 @@ describe('finance category draft helpers', () => {
       { id: 'import-1718812800000', status: 'Pending' },
     ]);
 
+    expect(applyStagedCategoryDraftsToActiveImport(activeImport, entries))
+      .toMatchObject({
+        finalBatchStatus: 'Pending',
+        processedTransactions: [
+          {
+            category: 'Groceries',
+            confidence: 100,
+            id: 'changed',
+            status: 'Pending',
+          },
+        ],
+      });
+  });
+
+  test('keeps active import in review when a staged draft needs review', () => {
+    const changed = createTransaction({
+      category: 'Groceries',
+      confidence: 100,
+      id: 'changed',
+      status: 'Pending',
+    });
+    const activeImport = {
+      activeImportId: importId,
+      fileName: 'bank.csv',
+      finalBatchStatus: 'Pending' as const,
+      isComplete: true,
+      isProcessing: false,
+      message: null,
+      processedRows: 1,
+      processedTransactions: [changed],
+      totalRows: 1,
+    };
+
     expect(
-      applyStagedCategoryDraftsToActiveImport(activeImport, entries)
-        .processedTransactions,
-    ).toMatchObject([
-      {
-        category: 'Groceries',
-        confidence: 100,
-        id: 'changed',
-        status: 'Pending',
-      },
-    ]);
+      applyStagedCategoryDraftsToActiveImport(activeImport, [
+        ['changed', 'Uncategorized'],
+      ]),
+    ).toMatchObject({
+      finalBatchStatus: 'Review',
+      processedTransactions: [
+        {
+          category: 'Uncategorized',
+          confidence: 31,
+          id: 'changed',
+          status: 'Review',
+        },
+      ],
+    });
   });
 });

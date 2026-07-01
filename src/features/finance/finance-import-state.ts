@@ -348,18 +348,20 @@ export const restoreActiveImportFromStaged = (
 ): ActiveImport => {
   const transactionsByImportId =
     getStagedTransactionsByImportId(stagedTransactions);
+  const importsById = new Map(imports.map((item) => [item.id, item]));
+  const stagedImportIds = Array.from(transactionsByImportId.keys()).toSorted(
+    (left, right) => getImportIdTimestamp(right) - getImportIdTimestamp(left),
+  );
 
   const restorableImport =
-    imports.find(
-      (item) =>
-        item.status !== 'Approved' && transactionsByImportId.has(item.id),
-    ) ??
-    Array.from(transactionsByImportId.keys())
-      .toSorted(
-        (left, right) =>
-          getImportIdTimestamp(right) - getImportIdTimestamp(left),
-      )
-      .map((importId) => imports.find((item) => item.id === importId))
+    stagedImportIds
+      .map((importId) => importsById.get(importId))
+      .find(
+        (item): item is ImportBatch =>
+          item !== undefined && item.status !== 'Approved',
+      ) ??
+    stagedImportIds
+      .map((importId) => importsById.get(importId))
       .find((item): item is ImportBatch => Boolean(item));
 
   if (!restorableImport) {
