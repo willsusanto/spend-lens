@@ -12,13 +12,7 @@ import {
 } from 'react';
 
 import { parseTransactionsCsv } from './csv';
-import {
-  FinanceStatus,
-  FinanceTransaction,
-  ImportBatch,
-  seedImports,
-  seedTransactions,
-} from './data';
+import { FinanceStatus, FinanceTransaction, ImportBatch } from './data';
 import {
   findDuplicateTransaction,
   isDuplicateTransaction,
@@ -130,12 +124,11 @@ export const FinanceDataProvider = ({
   store?: FinanceStore;
 }) => {
   const { categories, ollamaEndpoint, ollamaModel } = useFinanceSettings();
-  const [transactions, setTransactions] =
-    useState<FinanceTransaction[]>(seedTransactions);
+  const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [stagedTransactions, setStagedTransactions] = useState<
     FinanceTransaction[]
   >([]);
-  const [imports, setImports] = useState<ImportBatch[]>(seedImports);
+  const [imports, setImports] = useState<ImportBatch[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [activeImport, setActiveImport] =
     useState<ActiveImport>(idleActiveImport);

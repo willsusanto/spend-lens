@@ -2,8 +2,6 @@ import {
   FinanceTransaction,
   ImportBatch,
   normalizeFinanceStatus,
-  seedImports,
-  seedTransactions,
 } from '@/features/finance/data';
 import { normalizeTransactionDirection } from '@/features/finance/duplicate-transactions';
 
@@ -109,7 +107,7 @@ export const normalizeFinanceStoreSnapshot = (
   snapshot: Partial<FinanceStoreSnapshot>,
 ): FinanceStoreSnapshot => ({
   imports: normalizeFinanceImports(
-    Array.isArray(snapshot.imports) ? snapshot.imports : seedImports,
+    Array.isArray(snapshot.imports) ? snapshot.imports : [],
   ),
   stagedTransactions: normalizeFinanceTransactions(
     Array.isArray(snapshot.stagedTransactions)
@@ -117,9 +115,7 @@ export const normalizeFinanceStoreSnapshot = (
       : [],
   ),
   transactions: normalizeFinanceTransactions(
-    Array.isArray(snapshot.transactions)
-      ? snapshot.transactions
-      : seedTransactions,
+    Array.isArray(snapshot.transactions) ? snapshot.transactions : [],
   ),
 });
 
