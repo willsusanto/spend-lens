@@ -171,12 +171,20 @@ const parseApiError = async (response: Response) => {
 };
 
 const fetchFinanceStore = async (init: RequestInit = {}): Promise<Response> => {
+  const userId =
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem('spendlens.user-id')
+      : null;
+  const headers = new Headers(init.headers);
+  headers.set('Content-Type', 'application/json');
+
+  if (userId) {
+    headers.set('x-user-id', userId);
+  }
+
   const response = await fetch(financeStoreApiPath, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

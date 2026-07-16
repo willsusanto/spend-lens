@@ -25,6 +25,24 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   );
   const [financeStore] = React.useState(() => getDefaultFinanceStore());
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const queryUserId = params.get('userId') || params.get('user_id');
+
+    if (
+      queryUserId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        queryUserId,
+      )
+    ) {
+      window.localStorage.setItem('spendlens.user-id', queryUserId);
+    }
+  }, []);
+
   return (
     <ErrorBoundary FallbackComponent={MainErrorFallback}>
       <QueryClientProvider client={queryClient}>

@@ -104,8 +104,45 @@ export const FinanceSettingsProvider = ({
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setSettings(readStoredSettings());
-    setHydrated(true);
+    const loadSettings = async () => {
+      const local = readStoredSettings();
+      const userId =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('spendlens.user-id')
+          : null;
+
+      if (userId) {
+        try {
+          const response = await fetch('/api/settings', {
+            headers: {
+              'x-user-id': userId,
+            },
+          });
+          if (response.ok) {
+            const body = await response.json();
+            if (
+              body &&
+              typeof body === 'object' &&
+              Object.keys(body).length > 0
+            ) {
+              setSettings(normalizeFinanceSettings(body));
+              setHydrated(true);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn(
+            '[settings] failed to load settings from database, falling back to localStorage',
+            error,
+          );
+        }
+      }
+
+      setSettings(local);
+      setHydrated(true);
+    };
+
+    void loadSettings();
   }, []);
 
   useEffect(() => {
@@ -114,6 +151,32 @@ export const FinanceSettingsProvider = ({
     }
 
     writeStoredSettings(settings);
+
+    const userId =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem('spendlens.user-id')
+        : null;
+
+    if (userId) {
+      const syncSettings = async () => {
+        try {
+          await fetch('/api/settings', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': userId,
+            },
+            body: JSON.stringify(settings),
+          });
+        } catch (error) {
+          console.error(
+            '[settings] failed to save settings to database',
+            error,
+          );
+        }
+      };
+      void syncSettings();
+    }
   }, [hydrated, settings]);
 
   const addCategory = useCallback((category: string) => {

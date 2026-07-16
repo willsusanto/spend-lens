@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import {
-  normalizeFinanceImports,
-  normalizeFinanceTransactions,
-} from '@/features/finance/finance-store';
-import { postgresFinanceStore } from '@/features/finance/postgres-finance-store';
+  loadUserSettings,
+  saveUserSettings,
+} from '@/features/finance/postgres-finance-store';
 import { isSameOriginRequest } from '@/utils/request-security';
 
 export const runtime = 'nodejs';
@@ -14,7 +13,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toErrorResponse = (error: unknown) => {
   console.error(
-    '[finance-store] database request failed',
+    '[settings-api] database request failed',
     error instanceof Error
       ? {
           message: error.message,
@@ -22,17 +21,15 @@ const toErrorResponse = (error: unknown) => {
         }
       : { message: 'Unknown error' },
   );
-  const message =
-    error instanceof Error && error.message.includes('DATABASE_URL')
-      ? error.message
-      : 'Finance database request failed. Check the server logs and database settings.';
-
-  return NextResponse.json({ error: message }, { status: 500 });
+  return NextResponse.json(
+    { error: 'Settings database request failed. Check the server logs.' },
+    { status: 500 },
+  );
 };
 
 const toForbiddenResponse = () =>
   NextResponse.json(
-    { error: 'Cross-origin finance store requests are not allowed.' },
+    { error: 'Cross-origin settings requests are not allowed.' },
     { status: 403 },
   );
 
@@ -58,8 +55,9 @@ export async function GET(request: Request) {
 
   try {
     const userId = getAuthenticatedUserId(request);
+    const settings = await loadUserSettings(userId);
 
-    return NextResponse.json(await postgresFinanceStore.load(userId));
+    return NextResponse.json(settings ?? {});
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -90,48 +88,7 @@ export async function PATCH(request: Request) {
 
   try {
     const userId = getAuthenticatedUserId(request);
-
-    if ('imports' in body) {
-      if (!Array.isArray(body.imports)) {
-        return NextResponse.json(
-          { error: 'Expected imports to be an array.' },
-          { status: 400 },
-        );
-      }
-
-      await postgresFinanceStore.saveImports(
-        normalizeFinanceImports(body.imports),
-        userId,
-      );
-    }
-
-    if ('stagedTransactions' in body) {
-      if (!Array.isArray(body.stagedTransactions)) {
-        return NextResponse.json(
-          { error: 'Expected stagedTransactions to be an array.' },
-          { status: 400 },
-        );
-      }
-
-      await postgresFinanceStore.saveStagedTransactions(
-        normalizeFinanceTransactions(body.stagedTransactions),
-        userId,
-      );
-    }
-
-    if ('transactions' in body) {
-      if (!Array.isArray(body.transactions)) {
-        return NextResponse.json(
-          { error: 'Expected transactions to be an array.' },
-          { status: 400 },
-        );
-      }
-
-      await postgresFinanceStore.saveTransactions(
-        normalizeFinanceTransactions(body.transactions),
-        userId,
-      );
-    }
+    await saveUserSettings(userId, body);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
