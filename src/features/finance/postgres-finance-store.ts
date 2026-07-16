@@ -23,12 +23,10 @@ import {
   TransactionStorageState,
 } from '@/features/finance/postgres-finance-entities';
 
-type FinanceStoreKey = keyof FinanceStoreSnapshot;
+import { categories as defaultCategories } from './data';
+import { createDefaultCategoryColors } from './finance-settings';
 
-type FinanceStoreRow = {
-  key: FinanceStoreKey;
-  value: unknown;
-};
+type FinanceStoreKey = keyof FinanceStoreSnapshot;
 
 type FinanceStoreSectionRow = {
   section_key: FinanceStoreKey;
@@ -99,7 +97,81 @@ const getTableExists = async (tableName: string) => {
   return result.rows[0]?.exists ?? false;
 };
 
-const createNormalizedSchema = async () => {
+const hasUserIdColumn = async (tableName: string) => {
+  if (!(await getTableExists(tableName))) {
+    return true;
+  }
+
+  const result = await getPool().query<{ count: string }>(
+    `
+      SELECT count(*)::text AS count
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = $1
+      AND column_name = 'user_id'
+    `,
+    [tableName],
+  );
+
+  return Number(result.rows[0]?.count ?? 0) > 0;
+};
+
+const createNormalizedSchema = async (userId: string) => {
+  // Wipe legacy tables if they don't support RLS (missing user_id column)
+  const isImportBatchesRLS = await hasUserIdColumn(
+    financeImportBatchesTableName,
+  );
+  const isTransactionsRLS = await hasUserIdColumn(financeTransactionsTableName);
+
+  if (!isImportBatchesRLS || !isTransactionsRLS) {
+    console.log(
+      '[postgres-store] Old schema detected without RLS user_id column. Dropping tables for clean migration.',
+    );
+    await getPool().query(
+      `DROP TABLE IF EXISTS ${financeTransactionsTableName} CASCADE`,
+    );
+    await getPool().query(
+      `DROP TABLE IF EXISTS ${financeImportBatchesTableName} CASCADE`,
+    );
+    await getPool().query(
+      `DROP TABLE IF EXISTS ${financeStoreSectionsTableName} CASCADE`,
+    );
+  }
+
+  // 1. Create categories table
+  await getPool().query(`
+    CREATE TABLE IF NOT EXISTS spendlens_categories (
+      name text PRIMARY KEY,
+      color varchar(7) NOT NULL DEFAULT '#71717a',
+      type text NOT NULL CHECK (type IN ('Income', 'Expense')),
+      user_id uuid NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  // 2. Seed default categories if empty
+  const categoriesCountResult = await getPool().query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM spendlens_categories',
+  );
+  if (Number(categoriesCountResult.rows[0]?.count ?? 0) === 0) {
+    console.log('[postgres-store] Seeding default categories into database.');
+    const colors = createDefaultCategoryColors(defaultCategories);
+    for (const category of defaultCategories) {
+      const color = colors[category] ?? '#71717a';
+      const type = category === 'Income' ? 'Income' : 'Expense';
+      await getPool().query(
+        `
+          INSERT INTO spendlens_categories (name, color, type, user_id)
+          VALUES ($1, $2, $3, $4::uuid)
+          ON CONFLICT (name) DO NOTHING
+        `,
+        [category, color, type, userId],
+      );
+    }
+  }
+
+  // 3. Create import batches table
   await getPool().query(`
     CREATE TABLE IF NOT EXISTS ${financeImportBatchesTableName} (
       id text PRIMARY KEY,
@@ -107,13 +179,15 @@ const createNormalizedSchema = async () => {
       date_label text NOT NULL,
       row_count integer NOT NULL DEFAULT 0,
       duplicate_rows integer,
-      status text NOT NULL,
+      status text NOT NULL CHECK (status IN ('Pending', 'Review', 'Approved', 'Duplicate')),
       sort_order integer NOT NULL DEFAULT 0,
+      user_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
 
+  // 4. Create transactions table
   await getPool().query(`
     CREATE TABLE IF NOT EXISTS ${financeTransactionsTableName} (
       id text PRIMARY KEY,
@@ -123,9 +197,9 @@ const createNormalizedSchema = async () => {
       transaction_date text NOT NULL,
       description text NOT NULL,
       amount numeric(18, 2) NOT NULL,
-      category text NOT NULL,
+      category text NOT NULL REFERENCES spendlens_categories(name) ON UPDATE CASCADE,
       confidence integer NOT NULL DEFAULT 31,
-      status text NOT NULL,
+      status text NOT NULL CHECK (status IN ('Pending', 'Review', 'Approved', 'Duplicate')),
       direction text CHECK (direction IS NULL OR direction IN ('CR', 'DB')),
       note text,
       ai_reason text,
@@ -134,21 +208,26 @@ const createNormalizedSchema = async () => {
         categorization_source IN ('manual', 'ollama')
       ),
       ollama_model text,
-      import_id text,
+      import_id text REFERENCES ${financeImportBatchesTableName}(id) ON DELETE CASCADE,
       source_file text,
       sort_order integer NOT NULL DEFAULT 0,
+      user_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
 
+  // 5. Create store sections table
   await getPool().query(`
     CREATE TABLE IF NOT EXISTS ${financeStoreSectionsTableName} (
-      section_key text PRIMARY KEY,
-      updated_at timestamptz NOT NULL DEFAULT now()
+      section_key text,
+      user_id uuid NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (section_key, user_id)
     )
   `);
 
+  // Indexes
   await getPool().query(`
     CREATE INDEX IF NOT EXISTS spendlens_finance_transactions_state_idx
     ON ${financeTransactionsTableName} (transaction_state, sort_order)
@@ -168,24 +247,26 @@ const createNormalizedSchema = async () => {
 const markSectionSaved = async (
   client: PoolClient,
   sectionKey: FinanceStoreKey,
+  userId: string,
 ) => {
   await client.query(
     `
-      INSERT INTO ${financeStoreSectionsTableName} (section_key, updated_at)
-      VALUES ($1, now())
-      ON CONFLICT (section_key)
+      INSERT INTO ${financeStoreSectionsTableName} (section_key, user_id, updated_at)
+      VALUES ($1, $2::uuid, now())
+      ON CONFLICT (section_key, user_id)
       DO UPDATE SET updated_at = now()
     `,
-    [sectionKey],
+    [sectionKey, userId],
   );
 };
 
 const replaceImports = async (
   client: PoolClient,
   imports: FinanceStoreSnapshot['imports'],
+  userId: string,
 ) => {
   for (const [sortOrder, item] of imports.entries()) {
-    const entity = toPostgresImportBatchEntity(item, sortOrder);
+    const entity = toPostgresImportBatchEntity(item, sortOrder, userId);
 
     await client.query(
       `
@@ -197,9 +278,10 @@ const replaceImports = async (
           duplicate_rows,
           status,
           sort_order,
+          user_id,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid, now())
         ON CONFLICT (id)
         DO UPDATE SET
           file_name = EXCLUDED.file_name,
@@ -208,6 +290,7 @@ const replaceImports = async (
           duplicate_rows = EXCLUDED.duplicate_rows,
           status = EXCLUDED.status,
           sort_order = EXCLUDED.sort_order,
+          user_id = EXCLUDED.user_id,
           updated_at = now()
       `,
       [
@@ -218,6 +301,7 @@ const replaceImports = async (
         entity.duplicate_rows,
         entity.status,
         entity.sort_order,
+        entity.user_id,
       ],
     );
   }
@@ -225,29 +309,59 @@ const replaceImports = async (
   await client.query(
     `
       DELETE FROM ${financeImportBatchesTableName} import_batch
-      WHERE NOT (import_batch.id = ANY($1::text[]))
+      WHERE import_batch.user_id = $1::uuid
+      AND NOT (import_batch.id = ANY($2::text[]))
       AND NOT EXISTS (
         SELECT 1
         FROM ${financeTransactionsTableName} finance_transaction
         WHERE finance_transaction.import_id = import_batch.id
       )
     `,
-    [imports.map((item) => item.id)],
+    [userId, imports.map((item) => item.id)],
   );
 
-  await markSectionSaved(client, 'imports');
+  await markSectionSaved(client, 'imports', userId);
 };
 
 const replaceTransactions = async (
   client: PoolClient,
   transactionState: TransactionStorageState,
   transactions: FinanceStoreSnapshot['transactions'],
+  userId: string,
 ) => {
+  // Pre-insert placeholders for imports and categories to satisfy foreign keys
+  for (const item of transactions) {
+    if (item.importId) {
+      await client.query(
+        `
+          INSERT INTO ${financeImportBatchesTableName} (
+            id, file_name, date_label, row_count, status, sort_order, user_id
+          )
+          VALUES ($1, $2, $3, 0, 'Pending', 0, $4::uuid)
+          ON CONFLICT (id) DO NOTHING
+        `,
+        [item.importId, item.sourceFile ?? 'Import Batch', 'Pending', userId],
+      );
+    }
+
+    // Ensure custom category exists in spendlens_categories table
+    const categoryType = item.category === 'Income' ? 'Income' : 'Expense';
+    await client.query(
+      `
+        INSERT INTO spendlens_categories (name, color, type, user_id)
+        VALUES ($1, '#71717a', $2, $3::uuid)
+        ON CONFLICT (name) DO NOTHING
+      `,
+      [item.category, categoryType, userId],
+    );
+  }
+
   for (const [sortOrder, item] of transactions.entries()) {
     const entity = toPostgresFinanceTransactionEntity(
       item,
       transactionState,
       sortOrder,
+      userId,
     );
 
     await client.query(
@@ -269,11 +383,12 @@ const replaceTransactions = async (
           import_id,
           source_file,
           sort_order,
+          user_id,
           updated_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14, $15, $16, now()
+          $9, $10, $11, $12, $13, $14, $15, $16, $17::uuid, now()
         )
         ON CONFLICT (id)
         DO UPDATE SET
@@ -292,6 +407,7 @@ const replaceTransactions = async (
           import_id = EXCLUDED.import_id,
           source_file = EXCLUDED.source_file,
           sort_order = EXCLUDED.sort_order,
+          user_id = EXCLUDED.user_id,
           updated_at = now()
       `,
       [
@@ -311,6 +427,7 @@ const replaceTransactions = async (
         entity.import_id,
         entity.source_file,
         entity.sort_order,
+        entity.user_id,
       ],
     );
   }
@@ -319,14 +436,16 @@ const replaceTransactions = async (
     `
       DELETE FROM ${financeTransactionsTableName}
       WHERE transaction_state = $1
-      AND NOT (id = ANY($2::text[]))
+      AND user_id = $2::uuid
+      AND NOT (id = ANY($3::text[]))
     `,
-    [transactionState, transactions.map((item) => item.id)],
+    [transactionState, userId, transactions.map((item) => item.id)],
   );
 
   await markSectionSaved(
     client,
     transactionState === 'ledger' ? 'transactions' : 'stagedTransactions',
+    userId,
   );
 };
 
@@ -369,7 +488,7 @@ const getNormalizedRowCount = async () => {
   return Number(result.rows[0]?.count ?? 0);
 };
 
-const migrateJsonStateTables = async () => {
+const migrateJsonStateTables = async (userId: string) => {
   if ((await getNormalizedRowCount()) > 0) {
     return;
   }
@@ -396,15 +515,25 @@ const migrateJsonStateTables = async () => {
     await client.query('BEGIN');
 
     if (snapshot.imports) {
-      await replaceImports(client, snapshot.imports);
+      await replaceImports(client, snapshot.imports, userId);
     }
 
     if (snapshot.stagedTransactions) {
-      await replaceTransactions(client, 'staged', snapshot.stagedTransactions);
+      await replaceTransactions(
+        client,
+        'staged',
+        snapshot.stagedTransactions,
+        userId,
+      );
     }
 
     if (snapshot.transactions) {
-      await replaceTransactions(client, 'ledger', snapshot.transactions);
+      await replaceTransactions(
+        client,
+        'ledger',
+        snapshot.transactions,
+        userId,
+      );
     }
 
     await client.query('COMMIT');
@@ -416,21 +545,22 @@ const migrateJsonStateTables = async () => {
   }
 };
 
-const ensureSchema = async () => {
+const ensureSchema = async (userId: string) => {
   if (schemaReady) {
     return;
   }
 
-  await createNormalizedSchema();
-  await migrateJsonStateTables();
+  await createNormalizedSchema(userId);
+  await migrateJsonStateTables(userId);
 
   schemaReady = true;
 };
 
 const saveWithClient = async (
+  userId: string,
   action: (client: PoolClient) => Promise<void>,
 ) => {
-  await ensureSchema();
+  await ensureSchema(userId);
 
   const client = await getPool().connect();
 
@@ -446,21 +576,23 @@ const saveWithClient = async (
   }
 };
 
-const getSavedSections = async () => {
+const getSavedSections = async (userId: string) => {
   const result = await getPool().query<FinanceStoreSectionRow>(
     `
       SELECT section_key
       FROM ${financeStoreSectionsTableName}
-      WHERE section_key = ANY($1::text[])
+      WHERE user_id = $1::uuid
+      AND section_key = ANY($2::text[])
     `,
-    [stateKeys],
+    [userId, stateKeys],
   );
 
   return new Set(result.rows.map((row) => row.section_key));
 };
 
-const loadImports = async () => {
-  const result = await getPool().query<PostgresImportBatchEntity>(`
+const loadImports = async (userId: string) => {
+  const result = await getPool().query<PostgresImportBatchEntity>(
+    `
     SELECT
       id,
       file_name,
@@ -468,15 +600,22 @@ const loadImports = async () => {
       duplicate_rows,
       row_count,
       status,
-      sort_order
+      sort_order,
+      user_id
     FROM ${financeImportBatchesTableName}
+    WHERE user_id = $1::uuid
     ORDER BY sort_order ASC, updated_at DESC, id ASC
-  `);
+  `,
+    [userId],
+  );
 
   return result.rows.map(fromPostgresImportBatchEntity);
 };
 
-const loadTransactions = async (transactionState: TransactionStorageState) => {
+const loadTransactions = async (
+  transactionState: TransactionStorageState,
+  userId: string,
+) => {
   const result = await getPool().query<PostgresFinanceTransactionEntity>(
     `
       SELECT
@@ -495,25 +634,35 @@ const loadTransactions = async (transactionState: TransactionStorageState) => {
         ollama_model,
         import_id,
         source_file,
-        sort_order
+        sort_order,
+        user_id
       FROM ${financeTransactionsTableName}
       WHERE transaction_state = $1
+      AND user_id = $2::uuid
       ORDER BY sort_order ASC, updated_at DESC, id ASC
     `,
-    [transactionState],
+    [transactionState, userId],
   );
 
   return result.rows.map(fromPostgresFinanceTransactionEntity);
 };
 
-export const postgresFinanceStore: FinanceStore = {
-  load: async () => {
-    await ensureSchema();
+type FinanceStoreRow = {
+  key: FinanceStoreKey;
+  value: unknown;
+};
 
-    const savedSections = await getSavedSections();
-    const imports = await loadImports();
-    const stagedTransactions = await loadTransactions('staged');
-    const transactions = await loadTransactions('ledger');
+export const postgresFinanceStore: FinanceStore = {
+  load: async (userId) => {
+    if (!userId) {
+      throw new Error('Unauthorized: User ID is required.');
+    }
+    await ensureSchema(userId);
+
+    const savedSections = await getSavedSections(userId);
+    const imports = await loadImports(userId);
+    const stagedTransactions = await loadTransactions('staged', userId);
+    const transactions = await loadTransactions('ledger', userId);
 
     return normalizeFinanceStoreSnapshot({
       imports:
@@ -530,14 +679,28 @@ export const postgresFinanceStore: FinanceStore = {
           : undefined,
     });
   },
-  saveImports: (imports) =>
-    saveWithClient((client) => replaceImports(client, imports)),
-  saveStagedTransactions: (stagedTransactions) =>
-    saveWithClient((client) =>
-      replaceTransactions(client, 'staged', stagedTransactions),
-    ),
-  saveTransactions: (transactions) =>
-    saveWithClient((client) =>
-      replaceTransactions(client, 'ledger', transactions),
-    ),
+  saveImports: (imports, userId) => {
+    if (!userId) {
+      throw new Error('Unauthorized: User ID is required.');
+    }
+    return saveWithClient(userId, (client) =>
+      replaceImports(client, imports, userId),
+    );
+  },
+  saveStagedTransactions: (stagedTransactions, userId) => {
+    if (!userId) {
+      throw new Error('Unauthorized: User ID is required.');
+    }
+    return saveWithClient(userId, (client) =>
+      replaceTransactions(client, 'staged', stagedTransactions, userId),
+    );
+  },
+  saveTransactions: (transactions, userId) => {
+    if (!userId) {
+      throw new Error('Unauthorized: User ID is required.');
+    }
+    return saveWithClient(userId, (client) =>
+      replaceTransactions(client, 'ledger', transactions, userId),
+    );
+  },
 };

@@ -12,10 +12,16 @@ export type FinanceStoreSnapshot = {
 };
 
 export type FinanceStore = {
-  load: () => Promise<FinanceStoreSnapshot>;
-  saveImports: (imports: ImportBatch[]) => Promise<void>;
-  saveStagedTransactions: (transactions: FinanceTransaction[]) => Promise<void>;
-  saveTransactions: (transactions: FinanceTransaction[]) => Promise<void>;
+  load: (userId?: string) => Promise<FinanceStoreSnapshot>;
+  saveImports: (imports: ImportBatch[], userId?: string) => Promise<void>;
+  saveStagedTransactions: (
+    transactions: FinanceTransaction[],
+    userId?: string,
+  ) => Promise<void>;
+  saveTransactions: (
+    transactions: FinanceTransaction[],
+    userId?: string,
+  ) => Promise<void>;
 };
 
 type StorageKey = {

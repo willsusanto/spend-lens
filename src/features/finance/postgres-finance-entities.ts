@@ -23,6 +23,7 @@ export type PostgresImportBatchEntity = {
   row_count: number;
   sort_order: number;
   status: string;
+  user_id: string;
 };
 
 export type PostgresFinanceTransactionEntity = {
@@ -42,6 +43,7 @@ export type PostgresFinanceTransactionEntity = {
   status: string;
   transaction_date: string;
   transaction_state: TransactionStorageState;
+  user_id: string;
 };
 
 const toInteger = (value: unknown, fallback = 0) => {
@@ -78,6 +80,7 @@ const toTransactionDirection = (
 export const toPostgresImportBatchEntity = (
   batch: ImportBatch,
   sortOrder: number,
+  userId: string,
 ): PostgresImportBatchEntity => ({
   date_label: batch.date,
   duplicate_rows:
@@ -87,6 +90,7 @@ export const toPostgresImportBatchEntity = (
   row_count: batch.rows,
   sort_order: sortOrder,
   status: batch.status,
+  user_id: userId,
 });
 
 export const fromPostgresImportBatchEntity = (
@@ -111,6 +115,7 @@ export const toPostgresFinanceTransactionEntity = (
   transaction: FinanceTransaction,
   transactionState: TransactionStorageState,
   sortOrder: number,
+  userId: string,
 ): PostgresFinanceTransactionEntity => ({
   ai_reason: toNullableString(transaction.aiReason),
   amount: transaction.amount,
@@ -128,6 +133,7 @@ export const toPostgresFinanceTransactionEntity = (
   status: transaction.status,
   transaction_date: transaction.date,
   transaction_state: transactionState,
+  user_id: userId,
 });
 
 export const fromPostgresFinanceTransactionEntity = (

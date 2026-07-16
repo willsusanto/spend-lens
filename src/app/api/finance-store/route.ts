@@ -36,13 +36,21 @@ const toForbiddenResponse = () =>
     { status: 403 },
   );
 
+const getAuthenticatedUserId = async (): Promise<string> => {
+  // In the future, verify the Supabase auth token or session cookie.
+  // For now, return a fixed fallback dummy user ID.
+  return '00000000-0000-0000-0000-000000000000';
+};
+
 export async function GET(request: Request) {
   if (!isSameOriginRequest(request)) {
     return toForbiddenResponse();
   }
 
   try {
-    return NextResponse.json(await postgresFinanceStore.load());
+    const userId = await getAuthenticatedUserId();
+
+    return NextResponse.json(await postgresFinanceStore.load(userId));
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -72,6 +80,8 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    const userId = await getAuthenticatedUserId();
+
     if ('imports' in body) {
       if (!Array.isArray(body.imports)) {
         return NextResponse.json(
@@ -82,6 +92,7 @@ export async function PATCH(request: Request) {
 
       await postgresFinanceStore.saveImports(
         normalizeFinanceImports(body.imports),
+        userId,
       );
     }
 
@@ -95,6 +106,7 @@ export async function PATCH(request: Request) {
 
       await postgresFinanceStore.saveStagedTransactions(
         normalizeFinanceTransactions(body.stagedTransactions),
+        userId,
       );
     }
 
@@ -108,6 +120,7 @@ export async function PATCH(request: Request) {
 
       await postgresFinanceStore.saveTransactions(
         normalizeFinanceTransactions(body.transactions),
+        userId,
       );
     }
 

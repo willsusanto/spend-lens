@@ -35,8 +35,10 @@ const transaction: FinanceTransaction = {
 };
 
 describe('postgres finance entities', () => {
+  const userId = 'user-123';
+
   test('maps import batches to normalized postgres entities', () => {
-    const entity = toPostgresImportBatchEntity(importBatch, 3);
+    const entity = toPostgresImportBatchEntity(importBatch, 3, userId);
 
     expect(entity).toEqual({
       date_label: 'Jun 18, 2026',
@@ -46,12 +48,18 @@ describe('postgres finance entities', () => {
       row_count: 4,
       sort_order: 3,
       status: 'Review',
+      user_id: userId,
     });
     expect(fromPostgresImportBatchEntity(entity)).toEqual(importBatch);
   });
 
   test('maps transactions to normalized postgres entities', () => {
-    const entity = toPostgresFinanceTransactionEntity(transaction, 'staged', 2);
+    const entity = toPostgresFinanceTransactionEntity(
+      transaction,
+      'staged',
+      2,
+      userId,
+    );
 
     expect(entity).toMatchObject({
       ai_reason: 'Cafe merchant',
@@ -63,6 +71,7 @@ describe('postgres finance entities', () => {
       source_file: 'bank.csv',
       transaction_date: 'Jun 18, 2026',
       transaction_state: 'staged',
+      user_id: userId,
     });
     expect(fromPostgresFinanceTransactionEntity(entity)).toEqual(transaction);
   });
@@ -70,7 +79,7 @@ describe('postgres finance entities', () => {
   test('normalizes stored transaction values when reading entities', () => {
     expect(
       fromPostgresFinanceTransactionEntity({
-        ...toPostgresFinanceTransactionEntity(transaction, 'ledger', 0),
+        ...toPostgresFinanceTransactionEntity(transaction, 'ledger', 0, userId),
         amount: '9000.75',
         categorization_source: 'remote',
         direction: null,
