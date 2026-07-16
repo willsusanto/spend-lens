@@ -174,6 +174,13 @@ const generateCategories = async (
 };
 
 export async function POST(request: Request) {
+  if (env.HOSTED_MODE) {
+    return NextResponse.json(
+      { error: 'Categorization is disabled in hosted mode.' },
+      { status: 403 },
+    );
+  }
+
   if (!isSameOriginRequest(request)) {
     return NextResponse.json(
       { error: 'Cross-origin categorization requests are not allowed.' },

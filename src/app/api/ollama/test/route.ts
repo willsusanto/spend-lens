@@ -25,6 +25,16 @@ type OllamaTagsResponse = {
 const connectionTimeoutMs = 10_000;
 
 export async function POST(request: Request) {
+  if (env.HOSTED_MODE) {
+    return NextResponse.json(
+      {
+        message: 'Ollama testing is disabled in hosted mode.',
+        ok: false,
+      },
+      { status: 403 },
+    );
+  }
+
   if (!isSameOriginRequest(request)) {
     return NextResponse.json(
       {

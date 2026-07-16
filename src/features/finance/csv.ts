@@ -162,7 +162,7 @@ export const parseTransactionsCsv = (
   const headers = rows[headerIndex] ?? [];
   const bodyRows = rows.slice(headerIndex + 1);
   const normalizedHeaders = headers.map(getHeaderKey);
-  const importId = `import-${Date.now()}`;
+  const importId = crypto.randomUUID();
 
   const csvRows = bodyRows
     .filter((values) => {

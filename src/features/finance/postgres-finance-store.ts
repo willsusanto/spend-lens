@@ -123,13 +123,30 @@ const createNormalizedSchema = async (userId: string) => {
   );
   const isTransactionsRLS = await hasUserIdColumn(financeTransactionsTableName);
 
-  if (!isImportBatchesRLS || !isTransactionsRLS) {
+  let isCategoryPkComposite = true;
+  if (await getTableExists('spendlens_categories')) {
+    const categoryPkResult = await getPool().query<{ count: string }>(
+      `
+        SELECT count(*)::text AS count
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        WHERE tc.table_name = 'spendlens_categories'
+        AND tc.constraint_type = 'PRIMARY KEY'
+      `,
+    );
+    isCategoryPkComposite = Number(categoryPkResult.rows[0]?.count ?? 0) > 1;
+  }
+
+  if (!isImportBatchesRLS || !isTransactionsRLS || !isCategoryPkComposite) {
     console.log(
-      '[postgres-store] Old schema detected without RLS user_id column. Dropping tables for clean migration.',
+      '[postgres-store] Old schema or non-composite categories table detected. Dropping tables for clean migration.',
     );
     await getPool().query(
       `DROP TABLE IF EXISTS ${financeTransactionsTableName} CASCADE`,
     );
+    await getPool().query(`DROP TABLE IF EXISTS spendlens_categories CASCADE`);
     await getPool().query(
       `DROP TABLE IF EXISTS ${financeImportBatchesTableName} CASCADE`,
     );
@@ -141,18 +158,20 @@ const createNormalizedSchema = async (userId: string) => {
   // 1. Create categories table
   await getPool().query(`
     CREATE TABLE IF NOT EXISTS spendlens_categories (
-      name text PRIMARY KEY,
+      name text,
       color varchar(7) NOT NULL DEFAULT '#71717a',
       type text NOT NULL CHECK (type IN ('Income', 'Expense')),
       user_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (name, user_id)
     )
   `);
 
   // 2. Seed default categories if empty
   const categoriesCountResult = await getPool().query<{ count: string }>(
-    'SELECT count(*)::text AS count FROM spendlens_categories',
+    'SELECT count(*)::text AS count FROM spendlens_categories WHERE user_id = $1::uuid',
+    [userId],
   );
   if (Number(categoriesCountResult.rows[0]?.count ?? 0) === 0) {
     console.log('[postgres-store] Seeding default categories into database.');
@@ -164,7 +183,7 @@ const createNormalizedSchema = async (userId: string) => {
         `
           INSERT INTO spendlens_categories (name, color, type, user_id)
           VALUES ($1, $2, $3, $4::uuid)
-          ON CONFLICT (name) DO NOTHING
+          ON CONFLICT (name, user_id) DO NOTHING
         `,
         [category, color, type, userId],
       );
@@ -197,7 +216,7 @@ const createNormalizedSchema = async (userId: string) => {
       transaction_date text NOT NULL,
       description text NOT NULL,
       amount numeric(18, 2) NOT NULL,
-      category text NOT NULL REFERENCES spendlens_categories(name) ON UPDATE CASCADE,
+      category text NOT NULL,
       confidence integer NOT NULL DEFAULT 31,
       status text NOT NULL CHECK (status IN ('Pending', 'Review', 'Approved', 'Duplicate')),
       direction text CHECK (direction IS NULL OR direction IN ('CR', 'DB')),
@@ -213,7 +232,8 @@ const createNormalizedSchema = async (userId: string) => {
       sort_order integer NOT NULL DEFAULT 0,
       user_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      FOREIGN KEY (category, user_id) REFERENCES spendlens_categories(name, user_id) ON UPDATE CASCADE
     )
   `);
 
@@ -224,6 +244,16 @@ const createNormalizedSchema = async (userId: string) => {
       user_id uuid NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (section_key, user_id)
+    )
+  `);
+
+  // 6. Create user settings table
+  await getPool().query(`
+    CREATE TABLE IF NOT EXISTS spendlens_user_settings (
+      user_id uuid PRIMARY KEY,
+      settings jsonb NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
 
@@ -350,7 +380,7 @@ const replaceTransactions = async (
       `
         INSERT INTO spendlens_categories (name, color, type, user_id)
         VALUES ($1, '#71717a', $2, $3::uuid)
-        ON CONFLICT (name) DO NOTHING
+        ON CONFLICT (name, user_id) DO NOTHING
       `,
       [item.category, categoryType, userId],
     );
@@ -477,19 +507,22 @@ const loadStateSnapshotFromTable = async (tableName: string) => {
   return snapshot;
 };
 
-const getNormalizedRowCount = async () => {
-  const result = await getPool().query<{ count: string }>(`
-    SELECT (
-      (SELECT count(*) FROM ${financeImportBatchesTableName}) +
-      (SELECT count(*) FROM ${financeTransactionsTableName})
-    )::text AS count
-  `);
+const getNormalizedRowCountForUser = async (userId: string) => {
+  const result = await getPool().query<{ count: string }>(
+    `
+      SELECT (
+        (SELECT count(*) FROM ${financeImportBatchesTableName} WHERE user_id = $1::uuid) +
+        (SELECT count(*) FROM ${financeTransactionsTableName} WHERE user_id = $1::uuid)
+      )::text AS count
+    `,
+    [userId],
+  );
 
   return Number(result.rows[0]?.count ?? 0);
 };
 
 const migrateJsonStateTables = async (userId: string) => {
-  if ((await getNormalizedRowCount()) > 0) {
+  if ((await getNormalizedRowCountForUser(userId)) > 0) {
     return;
   }
 
@@ -546,14 +579,11 @@ const migrateJsonStateTables = async (userId: string) => {
 };
 
 const ensureSchema = async (userId: string) => {
-  if (schemaReady) {
-    return;
+  if (!schemaReady) {
+    await createNormalizedSchema(userId);
+    schemaReady = true;
   }
-
-  await createNormalizedSchema(userId);
   await migrateJsonStateTables(userId);
-
-  schemaReady = true;
 };
 
 const saveWithClient = async (
@@ -703,4 +733,31 @@ export const postgresFinanceStore: FinanceStore = {
       replaceTransactions(client, 'ledger', transactions, userId),
     );
   },
+};
+
+export const loadUserSettings = async (
+  userId: string,
+): Promise<unknown | null> => {
+  await ensureSchema(userId);
+  const result = await getPool().query<{ settings: unknown }>(
+    `SELECT settings FROM spendlens_user_settings WHERE user_id = $1::uuid`,
+    [userId],
+  );
+  return result.rows[0]?.settings ?? null;
+};
+
+export const saveUserSettings = async (
+  userId: string,
+  settings: unknown,
+): Promise<void> => {
+  await ensureSchema(userId);
+  await getPool().query(
+    `
+      INSERT INTO spendlens_user_settings (user_id, settings, updated_at)
+      VALUES ($1::uuid, $2, now())
+      ON CONFLICT (user_id)
+      DO UPDATE SET settings = EXCLUDED.settings, updated_at = now()
+    `,
+    [userId, JSON.stringify(settings)],
+  );
 };

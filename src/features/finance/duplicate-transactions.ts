@@ -4,10 +4,13 @@ import {
 } from '@/features/finance/data';
 
 const normalizeDuplicateDate = (date: string) => {
-  const timestamp = new Date(date).getTime();
+  const d = new Date(date);
 
-  if (!Number.isNaN(timestamp)) {
-    return new Date(timestamp).toISOString().slice(0, 10);
+  if (!Number.isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   return date.trim().toLocaleLowerCase();
