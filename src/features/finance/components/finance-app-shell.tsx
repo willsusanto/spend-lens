@@ -137,10 +137,14 @@ export const FinanceAppShell = ({
   children,
   contentPadding,
 }: FinanceAppShellProps) => {
+  const isHosted = process.env.NEXT_PUBLIC_HOSTED_MODE === 'true';
+
   return (
     <AppShell
       contentPadding={contentPadding}
-      syncIndicator={<FinanceSyncIndicator />}
+      syncIndicator={
+        isHosted ? <div className="w-10" /> : <FinanceSyncIndicator />
+      }
     >
       {children}
     </AppShell>

@@ -16,13 +16,21 @@ import { ReactNode } from 'react';
 import { paths } from '@/config/paths';
 import { cn } from '@/utils/cn';
 
-const navigation = [
-  { href: paths.home.getHref(), label: 'Home', icon: Home },
-  { href: paths.imports.getHref(), label: 'Imports', icon: FileText },
-  { href: paths.transactions.getHref(), label: 'Transactions', icon: List },
-  { href: paths.statistics.getHref(), label: 'Statistics', icon: ChartPie },
-  { href: paths.settings.getHref(), label: 'Settings', icon: Settings },
-];
+const isHostedMode = process.env.NEXT_PUBLIC_HOSTED_MODE === 'true';
+
+const navigation = isHostedMode
+  ? [
+      { href: paths.home.getHref(), label: 'Transactions', icon: List },
+      { href: paths.statistics.getHref(), label: 'Statistics', icon: ChartPie },
+      { href: paths.settings.getHref(), label: 'Settings', icon: Settings },
+    ]
+  : [
+      { href: paths.home.getHref(), label: 'Home', icon: Home },
+      { href: paths.imports.getHref(), label: 'Imports', icon: FileText },
+      { href: paths.transactions.getHref(), label: 'Transactions', icon: List },
+      { href: paths.statistics.getHref(), label: 'Statistics', icon: ChartPie },
+      { href: paths.settings.getHref(), label: 'Settings', icon: Settings },
+    ];
 
 type AppShellProps = {
   children: ReactNode;

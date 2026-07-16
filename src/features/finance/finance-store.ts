@@ -131,13 +131,13 @@ export const localStorageFinanceStore: FinanceStore = {
   load: async () => {
     return normalizeFinanceStoreSnapshot({
       imports: normalizeFinanceImports(
-        readStored<StoredImportBatch[]>(importsKey, seedImports),
+        readStored<StoredImportBatch[]>(importsKey, []),
       ),
       stagedTransactions: normalizeFinanceTransactions(
         readStored<StoredTransaction[]>(stagedTransactionsKey, []),
       ),
       transactions: normalizeFinanceTransactions(
-        readStored<StoredTransaction[]>(transactionsKey, seedTransactions),
+        readStored<StoredTransaction[]>(transactionsKey, []),
       ),
     });
   },
@@ -203,7 +203,4 @@ export const apiFinanceStore: FinanceStore = {
   saveTransactions: (transactions) => saveFinanceStorePatch({ transactions }),
 };
 
-export const getDefaultFinanceStore = () =>
-  process.env.NEXT_PUBLIC_FINANCE_STORE_MODE === 'database'
-    ? apiFinanceStore
-    : localStorageFinanceStore;
+export const getDefaultFinanceStore = () => apiFinanceStore;

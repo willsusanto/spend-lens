@@ -181,6 +181,8 @@ export const SettingsPage = () => {
     setCategoryMessage('Categories reset to the default list.');
   };
 
+  const isHosted = process.env.NEXT_PUBLIC_HOSTED_MODE === 'true';
+
   return (
     <FinanceAppShell>
       <PageContainer flow="space" className="max-w-5xl pt-3 sm:pt-6">
@@ -189,65 +191,70 @@ export const SettingsPage = () => {
           description="Manage your local environment and transaction categories."
         />
 
-        <Panel>
-          <PanelHeader>
-            <h2 className="flex items-center gap-2 text-xl font-semibold">
-              <Wand2 className="size-5" aria-hidden="true" />
-              AI Connection
-            </h2>
-            <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
-              Configure your local LLM settings for auto-categorization of
-              imported transactions. Public endpoints are blocked.
-            </p>
-          </PanelHeader>
-          <form className="grid gap-5 p-5" onSubmit={saveConnectionSettings}>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Input
-                required
-                className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
-                label="Ollama Endpoint URL"
-                type="url"
-                value={endpointDraft}
-                onChange={(event) => setEndpointDraft(event.target.value)}
-              />
-              <Input
-                required
-                className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
-                label="Model Name"
-                value={modelDraft}
-                onChange={(event) => setModelDraft(event.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <p
-                aria-live="polite"
-                className="text-sm text-[hsl(var(--on-surface-variant))] sm:mr-auto"
-              >
-                {connectionMessage}
+        {!isHosted && (
+          <Panel>
+            <PanelHeader>
+              <h2 className="flex items-center gap-2 text-xl font-semibold">
+                <Wand2 className="size-5" aria-hidden="true" />
+                AI Connection
+              </h2>
+              <p className="mt-1 text-xs text-[hsl(var(--on-surface-variant))]">
+                Configure your local LLM settings for auto-categorization of
+                imported transactions. Public endpoints are blocked.
               </p>
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 text-sm font-semibold transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
-                disabled={isTestingConnection}
-                onClick={testConnection}
-              >
-                {isTestingConnection ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Cable className="size-4" aria-hidden="true" />
-                )}
-                Test Connection
-              </button>
-              <button
-                type="submit"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-              >
-                <Save className="size-4" aria-hidden="true" />
-                Save Settings
-              </button>
-            </div>
-          </form>
-        </Panel>
+            </PanelHeader>
+            <form className="grid gap-5 p-5" onSubmit={saveConnectionSettings}>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Input
+                  required
+                  className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
+                  label="Ollama Endpoint URL"
+                  type="url"
+                  value={endpointDraft}
+                  onChange={(event) => setEndpointDraft(event.target.value)}
+                />
+                <Input
+                  required
+                  className="min-h-10 border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface))] shadow-none"
+                  label="Model Name"
+                  value={modelDraft}
+                  onChange={(event) => setModelDraft(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <p
+                  aria-live="polite"
+                  className="text-sm text-[hsl(var(--on-surface-variant))] sm:mr-auto"
+                >
+                  {connectionMessage}
+                </p>
+                <button
+                  type="button"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-[hsl(var(--outline-variant))] bg-[hsl(var(--surface-lowest))] px-4 text-sm font-semibold transition-colors hover:bg-[hsl(var(--surface-low))] disabled:opacity-40"
+                  disabled={isTestingConnection}
+                  onClick={testConnection}
+                >
+                  {isTestingConnection ? (
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Cable className="size-4" aria-hidden="true" />
+                  )}
+                  Test Connection
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <Save className="size-4" aria-hidden="true" />
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </Panel>
+        )}
 
         <Panel clipped>
           <PanelHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

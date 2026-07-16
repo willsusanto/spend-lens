@@ -149,18 +149,19 @@ describe('finance category draft helpers', () => {
       { id: 'import-1718812800000', status: 'Pending' },
     ]);
 
-    expect(applyStagedCategoryDraftsToActiveImport(activeImport, entries))
-      .toMatchObject({
-        finalBatchStatus: 'Pending',
-        processedTransactions: [
-          {
-            category: 'Groceries',
-            confidence: 100,
-            id: 'changed',
-            status: 'Pending',
-          },
-        ],
-      });
+    expect(
+      applyStagedCategoryDraftsToActiveImport(activeImport, entries),
+    ).toMatchObject({
+      finalBatchStatus: 'Pending',
+      processedTransactions: [
+        {
+          category: 'Groceries',
+          confidence: 100,
+          id: 'changed',
+          status: 'Pending',
+        },
+      ],
+    });
   });
 
   test('keeps active import in review when a staged draft needs review', () => {

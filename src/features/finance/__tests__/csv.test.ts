@@ -1,5 +1,6 @@
-import { parseTransactionsCsv } from '@/features/finance/csv';
 import { describe, expect, test } from 'vitest';
+
+import { parseTransactionsCsv } from '@/features/finance/csv';
 
 describe('parseTransactionsCsv', () => {
   test('parses accounting negatives and comma/dot amount formats', () => {
